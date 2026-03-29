@@ -18,21 +18,40 @@ func init() {
 }
 
 // FileBackend implements [URIPathBackend] for local file system operations.
+//
+// The following rules apply to the URI for a [FileBackend]:
+// - Absolute and relative paths without any scheme are supported for *nix and MacOS platforms.
+// - Absolute and relative paths with the `file://` scheme are supported for *nix and MacOS platforms.
+// - Windows paths **must** be prefixed with the `file://` scheme and should contain forward slashes. They will be
+// translated automatically to backslashes.
+// - For any other paths, either an error will be returned or files may not be correctly referenced.
 type FileBackend struct {
 	BackendBase
 }
 
 // NewFileBackend creates and initializes a new [FileBackend] object.
 //
-// The options passed to this function are not used.
+// If the URI path is not an absolute path, it is automatically converted to an absolute path when the backend is
+// created.
+//
+// The following options are supported by this backend:
+//   - "rel_root": the root path to prepend to any relative paths in the URI
+//
+// Duplicate options passed to a function will override any options set in the backend.
 //
 // This function will never return an error.
-func NewFileBackend(uri *URIPath, options ...map[string]any) (URIPathBackend, xerrors.Error) {
+func NewFileBackend(uri *URIPath, options ...BackendOption) (URIPathBackend, xerrors.Error) {
+	// convert the path to an absolute path
+	if !filepath.IsAbs(uri.path) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return nil, xerrors.Wrapf(BackendGetError, err, "failed to get current working directory: %s", err.Error())
+		}
+		uri.path = filepath.Clean(filepath.Join(GetFnOptionValue(cwd, "rel_root", nil, options...), uri.path))
+	}
+
 	return &FileBackend{
-		BackendBase: BackendBase{
-			options: map[string]any{},
-			uri:     uri,
-		},
+		BackendBase: InitBackendBase(uri, options...),
 	}, nil
 }
 
@@ -42,10 +61,11 @@ func NewFileBackend(uri *URIPath, options ...map[string]any) (URIPathBackend, xe
 //
 // This function may return an error with any of the following codes:
 //   - [BackendDeleteError]: the file or directory could not be deleted
-func (f *FileBackend) Delete(ctx context.Context, options ...map[string]any) xerrors.Error {
-	if err := os.RemoveAll(f.uri.Path()); err != nil {
-		return xerrors.Wrapf(BackendDeleteError, err, "failed to delete file '%s': %s", f.uri.Path(), err.Error()).
-			WithAttr("path", f.uri.Path())
+func (f *FileBackend) Delete(ctx context.Context, options ...BackendOption) xerrors.Error {
+	path := f.uri.Path()
+	if err := os.RemoveAll(path); err != nil {
+		return xerrors.Wrapf(BackendDeleteError, err, "failed to delete file '%s': %s", path, err.Error()).
+			WithAttr("path", path)
 	}
 	return nil
 }
@@ -56,14 +76,15 @@ func (f *FileBackend) Delete(ctx context.Context, options ...map[string]any) xer
 //
 // This function may return an error with any of the following codes:
 //   - [BackendExistsError]: the file or directory could not be checked
-func (f *FileBackend) Exists(ctx context.Context, options ...map[string]any) (bool, xerrors.Error) {
-	_, err := os.Stat(f.uri.Path())
+func (f *FileBackend) Exists(ctx context.Context, options ...BackendOption) (bool, xerrors.Error) {
+	path := f.uri.Path()
+	_, err := os.Stat(path)
 	if os.IsNotExist(err) {
 		return false, nil
 	}
 	if err != nil {
-		return false, xerrors.Wrapf(BackendExistsError, err, "failed to check for existence of '%s': %s", f.uri.Path(),
-			err.Error()).WithAttr("path", f.uri.Path())
+		return false, xerrors.Wrapf(BackendExistsError, err, "failed to check for existence of '%s': %s", path,
+			err.Error()).WithAttr("path", path)
 	}
 	return true, nil
 }
@@ -74,11 +95,12 @@ func (f *FileBackend) Exists(ctx context.Context, options ...map[string]any) (bo
 //
 // This function may return an error with any of the following codes:
 //   - [BackendGetError]: the file could not be read
-func (f *FileBackend) Get(ctx context.Context, options ...map[string]any) ([]byte, xerrors.Error) {
-	data, err := os.ReadFile(f.uri.Path())
+func (f *FileBackend) Get(ctx context.Context, options ...BackendOption) ([]byte, xerrors.Error) {
+	path := f.uri.Path()
+	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, xerrors.Wrapf(BackendGetError, err, "failed to read file '%s': %s", f.uri.Path(), err.Error()).
-			WithAttr("path", f.uri.Path())
+		return nil, xerrors.Wrapf(BackendGetError, err, "failed to read file '%s': %s", path, err.Error()).
+			WithAttr("path", path)
 	}
 	return data, nil
 }
@@ -89,25 +111,26 @@ func (f *FileBackend) Get(ctx context.Context, options ...map[string]any) ([]byt
 //
 // This function may return an error with any of the following codes:
 //   - [BackendListError]: the directory could not be listed
-func (f *FileBackend) List(ctx context.Context, recurse bool, options ...map[string]any) ([]string, xerrors.Error) {
+func (f *FileBackend) List(ctx context.Context, recurse bool, options ...BackendOption) ([]string, xerrors.Error) {
+	path := f.uri.Path()
 	var paths []string
-	err := filepath.Walk(f.uri.Path(), func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(path, func(walkPath string, info os.FileInfo, err error) error {
 		if err != nil {
-			return xerrors.Wrapf(BackendListError, err, "failed to access path '%s': %s", path, err.Error()).
-				WithAttr("path", path)
+			return xerrors.Wrapf(BackendListError, err, "failed to access path '%s': %s", walkPath, err.Error()).
+				WithAttr("path", walkPath)
 		}
-		if path == f.uri.Path() || path == "." || path == ".." {
+		if walkPath == path || walkPath == "." || walkPath == ".." {
 			return nil // skip the path itself and any parent listings
 		}
-		paths = append(paths, path)
+		paths = append(paths, walkPath)
 		if info.IsDir() && !recurse {
 			return filepath.SkipDir // skip subdirectories if not recursing
 		}
 		return nil
 	})
 	if err != nil {
-		return nil, xerrors.Wrapf(BackendListError, err, "failed to list directory '%s': %s", f.uri.Path(), err.Error()).
-			WithAttr("path", f.uri.Path())
+		return nil, xerrors.Wrapf(BackendListError, err, "failed to list directory '%s': %s", path, err.Error()).
+			WithAttr("path", path)
 	}
 	return paths, nil
 }
@@ -122,22 +145,23 @@ func (f *FileBackend) List(ctx context.Context, recurse bool, options ...map[str
 //
 // This function may return an error with any of the following codes:
 //   - [BackendPutError]: the file could not be written
-func (f *FileBackend) Put(ctx context.Context, data []byte, options ...map[string]any) xerrors.Error {
+func (f *FileBackend) Put(ctx context.Context, data []byte, options ...BackendOption) xerrors.Error {
 	// parse options for file/directory permissions if provided, otherwise use the defaults
 	dirPerm := GetFnOptionValue(os.FileMode(0755), "dir_mode", f.options, options...)
 	filePerm := GetFnOptionValue(os.FileMode(0644), "file_mode", f.options, options...)
 
 	// create parent directory if it doesn't exist
-	dir := filepath.Dir(f.uri.Path())
+	path := f.uri.Path()
+	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, dirPerm); err != nil {
 		return xerrors.Wrapf(BackendPutError, err, "failed to create parent directory '%s': %s", dir, err.Error()).
 			WithAttr("path", dir)
 	}
 
 	// write the file
-	if err := os.WriteFile(f.uri.Path(), data, filePerm); err != nil {
-		return xerrors.Wrapf(BackendPutError, err, "failed to write file '%s': %s", f.uri.Path(), err.Error()).
-			WithAttr("path", f.uri.Path())
+	if err := os.WriteFile(path, data, filePerm); err != nil {
+		return xerrors.Wrapf(BackendPutError, err, "failed to write file '%s': %s", path, err.Error()).
+			WithAttr("path", path)
 	}
 	return nil
 }

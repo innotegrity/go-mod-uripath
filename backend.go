@@ -14,38 +14,50 @@ type BackendBase struct {
 	uri     *URIPath       // the URI object associated with this backend
 }
 
+// InitBackendBase initializes a [BackendBase] object with the provided options.
+func InitBackendBase(uri *URIPath, options ...BackendOption) BackendBase {
+	b := BackendBase{
+		options: map[string]any{},
+		uri:     uri,
+	}
+	for _, option := range options {
+		option(&b)
+	}
+	return b
+}
+
 // Delete for this backend does nothing.
 //
 // Backends should override this method to provide actual delete functionality.
-func (b *BackendBase) Delete(ctx context.Context, options ...map[string]any) xerrors.Error {
+func (b *BackendBase) Delete(ctx context.Context, options ...BackendOption) xerrors.Error {
 	return nil
 }
 
 // Exists for this backend does nothing and always returns false.
 //
 // Backends should override this method to provide actual existence checking functionality.
-func (b *BackendBase) Exists(ctx context.Context, options ...map[string]any) (bool, xerrors.Error) {
+func (b *BackendBase) Exists(ctx context.Context, options ...BackendOption) (bool, xerrors.Error) {
 	return false, nil
 }
 
 // Get for this backend does nothing and returns nil data.
 //
 // Backends should override this method to provide actual get functionality.
-func (b *BackendBase) Get(ctx context.Context, options ...map[string]any) ([]byte, xerrors.Error) {
+func (b *BackendBase) Get(ctx context.Context, options ...BackendOption) ([]byte, xerrors.Error) {
 	return nil, nil
 }
 
 // List for this backend does nothing and returns a nil list.
 //
 // Backends should override this method to provide actual list functionality.
-func (b *BackendBase) List(ctx context.Context, recurse bool, options ...map[string]any) ([]string, xerrors.Error) {
+func (b *BackendBase) List(ctx context.Context, recurse bool, options ...BackendOption) ([]string, xerrors.Error) {
 	return nil, nil
 }
 
 // Put for this backend does nothing.
 //
 // Backends should override this method to provide actual put functionality.
-func (b *BackendBase) Put(ctx context.Context, data []byte, options ...map[string]any) xerrors.Error {
+func (b *BackendBase) Put(ctx context.Context, data []byte, options ...BackendOption) xerrors.Error {
 	return nil
 }
 
@@ -60,18 +72,23 @@ func (f *BackendBase) RemoveAllOptions() {
 }
 
 // RemoveOption removes a specific option from the backend.
-func (f *BackendBase) RemoveOption(key string) URIPathBackend {
-	delete(f.options, key)
-	return f
+func (b *BackendBase) RemoveOption(key string) URIPathBackend {
+	delete(b.options, key)
+	return b
 }
 
 // ReplaceOptions replaces all options in the backend with the provided options.
-func (f *BackendBase) ReplaceOptions(options map[string]any) {
-	f.options = options
+func (b *BackendBase) ReplaceOptions(options map[string]any) {
+	b.options = options
 }
 
 // SetOption sets a specific option in the backend.
-func (f *BackendBase) SetOption(key string, value any) URIPathBackend {
-	f.options[key] = value
-	return f
+func (b *BackendBase) SetOption(key string, value any) URIPathBackend {
+	b.options[key] = value
+	return b
+}
+
+// URIPath returns the URI object associated with this backend.
+func (b *BackendBase) URIPath() *URIPath {
+	return b.uri
 }

@@ -38,3 +38,5 @@ github.com/aws/smithy-go v1.24.2 h1:FzA3bu/nt/vDvmnkg+R8Xl46gmzEDam6mZ1hzmwXFng=
 github.com/aws/smithy-go v1.24.2/go.mod h1:YE2RhdIuDbA5E5bTdciG9KrW3+TiEONeUWCqxX9i1Fc=
 go.innotegrity.dev/mod/xerrors v0.6.0 h1:TRXCcpOMa9D5EtAb9ZIQtRwBAwVZQRDsj513/YFQia4=
 go.innotegrity.dev/mod/xerrors v0.6.0/go.mod h1:udX9yT/cMInH3HoH6wddsaw3jCxrxnhKC5FHdTzc3jw=
+go.uber.org/mock v0.6.0 h1:hyF9dfmbgIX5EfOdasqLsWD6xqpNZlXblLB/Dbnwv3Y=
+go.uber.org/mock v0.6.0/go.mod h1:KiVJ4BqZJaMj4svdfmHM0AUx4NJYO8ZNpPnZn1Z+BBU=

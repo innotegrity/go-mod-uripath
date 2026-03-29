@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -42,14 +44,14 @@ var (
 // Users can also register custom backends for additional schemes using the [RegisterBackend] function.
 type URIPath struct {
 	// unexported variables
-	backend  URIPathBackend      // backend which actually will be doing the work
-	fragment string              // fragment portion of URI (after '#')
-	host     string              // host portion of URI (after '//' and before next '/')
-	password string              // password portion of URI (after ':' in username:password)
-	path     string              // path portion of URI (after host and before '?')
-	query    map[string][]string // query parameters (after '?')
-	scheme   string              // scheme portion of URI (before '://')
-	username string              // username portion of URI (before ':')
+	backend  URIPathBackend // backend which actually will be doing the work
+	fragment string         // fragment portion of URI (after '#')
+	host     string         // host portion of URI (after '//' and before next '/')
+	password string         // password portion of URI (after ':' in username:password)
+	path     string         // path portion of URI (after host and before '?')
+	query    url.Values     // query parameters (after '?')
+	scheme   string         // scheme portion of URI (before '://')
+	username string         // username portion of URI (before ':')
 }
 
 // RegisterBackend registers a backend for a specific scheme, allowing users to extend the functionality with
@@ -72,7 +74,7 @@ func RegisterBackend(scheme string, newBackendFunc NewURIPathBackendFunc) {
 // This function may return an error with any of the following codes:
 //   - [InvalidParameter]: the URI is not valid
 //   - [SchemeNotFound]: the URI scheme is not registered
-func ParseURI(uri string, backendOptions ...map[string]any) (*URIPath, xerrors.Error) {
+func ParseURI(uri string, backendOptions ...BackendOption) (*URIPath, xerrors.Error) {
 	// parse the URI
 	parsedURL, err := url.Parse(uri)
 	if err != nil {
@@ -81,8 +83,11 @@ func ParseURI(uri string, backendOptions ...map[string]any) (*URIPath, xerrors.E
 	}
 
 	// validate the scheme exists in the registry and get the corresponding backend constructor
-	scheme := strings.ToLower(parsedURL.Scheme)
-	newBackendFunc, xerr := getBackend(scheme)
+	parsedURL.Scheme = strings.ToLower(parsedURL.Scheme)
+	if parsedURL.Scheme == "" {
+		parsedURL.Scheme = FileScheme // default to file backend if no scheme is provided
+	}
+	newBackendFunc, xerr := getBackend(parsedURL.Scheme)
 	if xerr != nil {
 		return nil, xerr
 	}
@@ -94,9 +99,26 @@ func ParseURI(uri string, backendOptions ...map[string]any) (*URIPath, xerrors.E
 		password, _ = parsedURL.User.Password()
 	}
 
+	// for file schemes - there are a few things we need to do
+	if parsedURL.Scheme == FileScheme {
+		// if there's a hostname, that most likely means that the there was a relative file path, so we need to fix this
+		if parsedURL.Host != "" {
+			parsedURL.Path = filepath.Join(parsedURL.Host + parsedURL.Path)
+			parsedURL.Host = ""
+		}
+
+		// for Windows file:///C:/foo/bar results in /C:/foo/bar so we need to fix this and flip slashes
+		if runtime.GOOS == "windows" {
+			if len(parsedURL.Path) > 2 && parsedURL.Path[0] == '/' && parsedURL.Path[2] == ':' {
+				parsedURL.Path = parsedURL.Path[1:]
+			}
+			parsedURL.Path = filepath.FromSlash(parsedURL.Path)
+		}
+	}
+
 	// construct the object
 	u := &URIPath{
-		scheme:   scheme,
+		scheme:   parsedURL.Scheme,
 		username: username,
 		password: password,
 		host:     parsedURL.Host,
@@ -134,8 +156,8 @@ func BackendAs[T URIPathBackend](u *URIPath) (T, xerrors.Error) {
 // to review the documentation for the backend to understand how the context and options are used.
 //
 // This function may return an error with any of the codes from the [URIPathBackend.Delete] method.
-func (u *URIPath) Delete(ctx context.Context, options map[string]any) xerrors.Error {
-	return u.backend.Delete(ctx, options)
+func (u *URIPath) Delete(ctx context.Context, options ...BackendOption) xerrors.Error {
+	return u.backend.Delete(ctx, options...)
 }
 
 // Exists checks if the resource exists at the given path.
@@ -144,8 +166,8 @@ func (u *URIPath) Delete(ctx context.Context, options map[string]any) xerrors.Er
 // to review the documentation for the backend to understand how the context and options are used.
 //
 // This function may return an error with any of the codes from the [URIPathBackend.Exists] method.
-func (u *URIPath) Exists(ctx context.Context, options map[string]any) (bool, xerrors.Error) {
-	return u.backend.Exists(ctx, options)
+func (u *URIPath) Exists(ctx context.Context, options ...BackendOption) (bool, xerrors.Error) {
+	return u.backend.Exists(ctx, options...)
 }
 
 // Fragment returns the URI fragment.
@@ -159,8 +181,8 @@ func (u *URIPath) Fragment() string {
 // to review the documentation for the backend to understand how the context and options are used.
 //
 // This function may return an error with any of the codes from the [URIPathBackend.Get] method.
-func (u *URIPath) Get(ctx context.Context, options map[string]any) ([]byte, xerrors.Error) {
-	return u.backend.Get(ctx, options)
+func (u *URIPath) Get(ctx context.Context, options ...BackendOption) ([]byte, xerrors.Error) {
+	return u.backend.Get(ctx, options...)
 }
 
 // Host returns the URI host.
@@ -174,8 +196,8 @@ func (u *URIPath) Host() string {
 // to review the documentation for the backend to understand how the context and options are used.
 //
 // This function may return an error with any of the codes from the [URIPathBackend.List] method.
-func (u *URIPath) List(ctx context.Context, recurse bool, options map[string]any) ([]string, xerrors.Error) {
-	return u.backend.List(ctx, recurse, options)
+func (u *URIPath) List(ctx context.Context, recurse bool, options ...BackendOption) ([]string, xerrors.Error) {
+	return u.backend.List(ctx, recurse, options...)
 }
 
 // MarshalJSON marshals the [URIPath] value to JSON.
@@ -204,12 +226,12 @@ func (u *URIPath) Path() string {
 // to review the documentation for the backend to understand how the context and options are used.
 //
 // This function may return an error with any of the codes from the [URIPathBackend.Put] method.
-func (u *URIPath) Put(ctx context.Context, data []byte, options map[string]any) xerrors.Error {
-	return u.backend.Put(ctx, data, options)
+func (u *URIPath) Put(ctx context.Context, data []byte, options ...BackendOption) xerrors.Error {
+	return u.backend.Put(ctx, data, options...)
 }
 
 // Query returns the URI query parameters.
-func (u *URIPath) Query() map[string][]string {
+func (u *URIPath) Query() url.Values {
 	return u.query
 }
 
@@ -289,48 +311,6 @@ func (u *URIPath) Username() string {
 	return u.username
 }
 
-// GetFnOptionValue is a helper function that returns the value of the option with the given key, first searching the
-// function options list then the backend options. If the option is not found, the default value is returned.
-//
-// The value belonging to the matching key must be of the given type, otherwise it will be ignored.
-func GetFnOptionValue[T any](defaultValue T, key string, backendOptions map[string]any, fnOptionsList ...map[string]any) T {
-	for _, options := range fnOptionsList {
-		if v, ok := options[key]; ok {
-			if val, ok := v.(T); ok {
-				return val
-			}
-		}
-	}
-	if v, ok := backendOptions[key]; ok {
-		if val, ok := v.(T); ok {
-			return val
-		}
-	}
-	return defaultValue
-}
-
-// GetQueryOptionValue is a helper function that returns the value of the option with the given key, first searching the
-// query parameters then the given options. If the option is not found, the default value is returned.
-//
-// The value belonging to the matching key must be of the given type, otherwise it will be ignored.
-func GetQueryOptionValue[T any](defaultValue T, key string, queryParams url.Values, optionsList ...map[string]any) T {
-	val := queryParams.Get(key)
-	if val != "" {
-		if v, err := convertString[T](val); err == nil {
-			return v
-		}
-	}
-
-	for _, options := range optionsList {
-		if v, ok := options[key]; ok {
-			if val, ok := v.(T); ok {
-				return val
-			}
-		}
-	}
-	return defaultValue
-}
-
 // convertString converts a string to a type T using a type switch to handle common primitive types.
 func convertString[T any](s string) (T, error) {
 	var result T
@@ -377,9 +357,6 @@ func getBackend(scheme string) (NewURIPathBackendFunc, xerrors.Error) {
 	_registryMutex.RLock()
 	defer _registryMutex.RUnlock()
 
-	if scheme == "" {
-		scheme = FileScheme // default to file backend if no scheme is provided
-	}
 	if newBackendFunc, exists := _backendRegistry[strings.ToLower(scheme)]; exists {
 		return newBackendFunc, nil
 	}
