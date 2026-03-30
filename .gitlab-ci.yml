@@ -11,7 +11,8 @@ variables:
 secret_detection:
   stage: secret-detection
 
-run_tests:
+unit-test:
+  image: golang:1.25.1-alpine
   stage: test
   script:
     - echo "Running tests"
