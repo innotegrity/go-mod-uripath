@@ -19,32 +19,32 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
-// MockURIPathBackend is a mock of URIPathBackend interface.
-type MockURIPathBackend struct {
+// MockBackend is a mock of Backend interface.
+type MockBackend struct {
 	ctrl     *gomock.Controller
-	recorder *MockURIPathBackendMockRecorder
+	recorder *MockBackendMockRecorder
 	isgomock struct{}
 }
 
-// MockURIPathBackendMockRecorder is the mock recorder for MockURIPathBackend.
-type MockURIPathBackendMockRecorder struct {
-	mock *MockURIPathBackend
+// MockBackendMockRecorder is the mock recorder for MockBackend.
+type MockBackendMockRecorder struct {
+	mock *MockBackend
 }
 
-// NewMockURIPathBackend creates a new mock instance.
-func NewMockURIPathBackend(ctrl *gomock.Controller) *MockURIPathBackend {
-	mock := &MockURIPathBackend{ctrl: ctrl}
-	mock.recorder = &MockURIPathBackendMockRecorder{mock}
+// NewMockBackend creates a new mock instance.
+func NewMockBackend(ctrl *gomock.Controller) *MockBackend {
+	mock := &MockBackend{ctrl: ctrl}
+	mock.recorder = &MockBackendMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockURIPathBackend) EXPECT() *MockURIPathBackendMockRecorder {
+func (m *MockBackend) EXPECT() *MockBackendMockRecorder {
 	return m.recorder
 }
 
 // Delete mocks base method.
-func (m *MockURIPathBackend) Delete(ctx context.Context, options ...map[string]any) xerrors.Error {
+func (m *MockBackend) Delete(ctx context.Context, options ...map[string]any) xerrors.Error {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx}
 	for _, a := range options {
@@ -56,14 +56,14 @@ func (m *MockURIPathBackend) Delete(ctx context.Context, options ...map[string]a
 }
 
 // Delete indicates an expected call of Delete.
-func (mr *MockURIPathBackendMockRecorder) Delete(ctx any, options ...any) *gomock.Call {
+func (mr *MockBackendMockRecorder) Delete(ctx any, options ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{ctx}, options...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockURIPathBackend)(nil).Delete), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockBackend)(nil).Delete), varargs...)
 }
 
 // Exists mocks base method.
-func (m *MockURIPathBackend) Exists(ctx context.Context, options ...map[string]any) (bool, xerrors.Error) {
+func (m *MockBackend) Exists(ctx context.Context, options ...map[string]any) (bool, xerrors.Error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx}
 	for _, a := range options {
@@ -76,14 +76,14 @@ func (m *MockURIPathBackend) Exists(ctx context.Context, options ...map[string]a
 }
 
 // Exists indicates an expected call of Exists.
-func (mr *MockURIPathBackendMockRecorder) Exists(ctx any, options ...any) *gomock.Call {
+func (mr *MockBackendMockRecorder) Exists(ctx any, options ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{ctx}, options...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Exists", reflect.TypeOf((*MockURIPathBackend)(nil).Exists), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Exists", reflect.TypeOf((*MockBackend)(nil).Exists), varargs...)
 }
 
 // Get mocks base method.
-func (m *MockURIPathBackend) Get(ctx context.Context, options ...map[string]any) ([]byte, xerrors.Error) {
+func (m *MockBackend) Get(ctx context.Context, options ...map[string]any) ([]byte, xerrors.Error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx}
 	for _, a := range options {
@@ -96,14 +96,14 @@ func (m *MockURIPathBackend) Get(ctx context.Context, options ...map[string]any)
 }
 
 // Get indicates an expected call of Get.
-func (mr *MockURIPathBackendMockRecorder) Get(ctx any, options ...any) *gomock.Call {
+func (mr *MockBackendMockRecorder) Get(ctx any, options ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{ctx}, options...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockURIPathBackend)(nil).Get), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockBackend)(nil).Get), varargs...)
 }
 
 // List mocks base method.
-func (m *MockURIPathBackend) List(ctx context.Context, recurse bool, options ...map[string]any) ([]string, xerrors.Error) {
+func (m *MockBackend) List(ctx context.Context, recurse bool, options ...map[string]any) ([]string, xerrors.Error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, recurse}
 	for _, a := range options {
@@ -116,14 +116,14 @@ func (m *MockURIPathBackend) List(ctx context.Context, recurse bool, options ...
 }
 
 // List indicates an expected call of List.
-func (mr *MockURIPathBackendMockRecorder) List(ctx, recurse any, options ...any) *gomock.Call {
+func (mr *MockBackendMockRecorder) List(ctx, recurse any, options ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{ctx, recurse}, options...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockURIPathBackend)(nil).List), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockBackend)(nil).List), varargs...)
 }
 
 // Options mocks base method.
-func (m *MockURIPathBackend) Options() map[string]any {
+func (m *MockBackend) Options() map[string]any {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Options")
 	ret0, _ := ret[0].(map[string]any)
@@ -131,13 +131,13 @@ func (m *MockURIPathBackend) Options() map[string]any {
 }
 
 // Options indicates an expected call of Options.
-func (mr *MockURIPathBackendMockRecorder) Options() *gomock.Call {
+func (mr *MockBackendMockRecorder) Options() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Options", reflect.TypeOf((*MockURIPathBackend)(nil).Options))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Options", reflect.TypeOf((*MockBackend)(nil).Options))
 }
 
 // Put mocks base method.
-func (m *MockURIPathBackend) Put(ctx context.Context, data []byte, options ...map[string]any) xerrors.Error {
+func (m *MockBackend) Put(ctx context.Context, data []byte, options ...map[string]any) xerrors.Error {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, data}
 	for _, a := range options {
@@ -149,66 +149,66 @@ func (m *MockURIPathBackend) Put(ctx context.Context, data []byte, options ...ma
 }
 
 // Put indicates an expected call of Put.
-func (mr *MockURIPathBackendMockRecorder) Put(ctx, data any, options ...any) *gomock.Call {
+func (mr *MockBackendMockRecorder) Put(ctx, data any, options ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{ctx, data}, options...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Put", reflect.TypeOf((*MockURIPathBackend)(nil).Put), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Put", reflect.TypeOf((*MockBackend)(nil).Put), varargs...)
 }
 
 // RemoveAllOptions mocks base method.
-func (m *MockURIPathBackend) RemoveAllOptions() {
+func (m *MockBackend) RemoveAllOptions() {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "RemoveAllOptions")
 }
 
 // RemoveAllOptions indicates an expected call of RemoveAllOptions.
-func (mr *MockURIPathBackendMockRecorder) RemoveAllOptions() *gomock.Call {
+func (mr *MockBackendMockRecorder) RemoveAllOptions() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveAllOptions", reflect.TypeOf((*MockURIPathBackend)(nil).RemoveAllOptions))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveAllOptions", reflect.TypeOf((*MockBackend)(nil).RemoveAllOptions))
 }
 
 // RemoveOption mocks base method.
-func (m *MockURIPathBackend) RemoveOption(key string) uripath.URIPathBackend {
+func (m *MockBackend) RemoveOption(key string) uripath.Backend {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RemoveOption", key)
-	ret0, _ := ret[0].(uripath.URIPathBackend)
+	ret0, _ := ret[0].(uripath.Backend)
 	return ret0
 }
 
 // RemoveOption indicates an expected call of RemoveOption.
-func (mr *MockURIPathBackendMockRecorder) RemoveOption(key any) *gomock.Call {
+func (mr *MockBackendMockRecorder) RemoveOption(key any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveOption", reflect.TypeOf((*MockURIPathBackend)(nil).RemoveOption), key)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveOption", reflect.TypeOf((*MockBackend)(nil).RemoveOption), key)
 }
 
 // ReplaceOptions mocks base method.
-func (m *MockURIPathBackend) ReplaceOptions(options map[string]any) {
+func (m *MockBackend) ReplaceOptions(options map[string]any) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "ReplaceOptions", options)
 }
 
 // ReplaceOptions indicates an expected call of ReplaceOptions.
-func (mr *MockURIPathBackendMockRecorder) ReplaceOptions(options any) *gomock.Call {
+func (mr *MockBackendMockRecorder) ReplaceOptions(options any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplaceOptions", reflect.TypeOf((*MockURIPathBackend)(nil).ReplaceOptions), options)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplaceOptions", reflect.TypeOf((*MockBackend)(nil).ReplaceOptions), options)
 }
 
 // SetOption mocks base method.
-func (m *MockURIPathBackend) SetOption(key string, value any) uripath.URIPathBackend {
+func (m *MockBackend) SetOption(key string, value any) uripath.Backend {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetOption", key, value)
-	ret0, _ := ret[0].(uripath.URIPathBackend)
+	ret0, _ := ret[0].(uripath.Backend)
 	return ret0
 }
 
 // SetOption indicates an expected call of SetOption.
-func (mr *MockURIPathBackendMockRecorder) SetOption(key, value any) *gomock.Call {
+func (mr *MockBackendMockRecorder) SetOption(key, value any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetOption", reflect.TypeOf((*MockURIPathBackend)(nil).SetOption), key, value)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetOption", reflect.TypeOf((*MockBackend)(nil).SetOption), key, value)
 }
 
 // URIPath mocks base method.
-func (m *MockURIPathBackend) URIPath() *uripath.URIPath {
+func (m *MockBackend) URIPath() *uripath.URIPath {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "URIPath")
 	ret0, _ := ret[0].(*uripath.URIPath)
@@ -216,9 +216,9 @@ func (m *MockURIPathBackend) URIPath() *uripath.URIPath {
 }
 
 // URIPath indicates an expected call of URIPath.
-func (mr *MockURIPathBackendMockRecorder) URIPath() *gomock.Call {
+func (mr *MockBackendMockRecorder) URIPath() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "URIPath", reflect.TypeOf((*MockURIPathBackend)(nil).URIPath))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "URIPath", reflect.TypeOf((*MockBackend)(nil).URIPath))
 }
 
 // MockS3ClientAPI is a mock of S3ClientAPI interface.

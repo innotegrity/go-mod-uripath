@@ -7,12 +7,12 @@ import (
 	"go.innotegrity.dev/mod/xerrors"
 )
 
-// NewURIPathBackendFunc is a function that is used to create a new URIPathBackend instance for a given URIPath.
+// NewBackendFunc is a function that is used to create a new Backend instance for a given URIPath.
 //
 // Options passed to this function will come from the [ParseURI] function and can be used in constructing the backend.
-type NewURIPathBackendFunc func(uri *URIPath, options ...BackendOption) (URIPathBackend, xerrors.Error)
+type NewBackendFunc func(uri *URIPath, options ...BackendOption) (Backend, xerrors.Error)
 
-// URIPathBackend is the interface for a path URI backend.
+// Backend is the interface for a path URI backend.
 //
 // This interface is used by the [URIPath] struct to perform operations on the resource specified by the URI.
 //
@@ -20,7 +20,7 @@ type NewURIPathBackendFunc func(uri *URIPath, options ...BackendOption) (URIPath
 // [BackendBase] struct into your custom backend and overriding the methods that you need to implement. [BackendBase]
 // includes functionality to handle common backend options that callers can pass if they do not wish to specify them
 // as part of the URI. Be sure to initialize the [BackendBase] struct before using it or its options.
-type URIPathBackend interface {
+type Backend interface {
 	// Delete should delete the resource at the given path.
 	//
 	// The context and options passed to this function are the same as the ones passed to the [URIPath.Delete] function.
@@ -73,7 +73,7 @@ type URIPathBackend interface {
 	// RemoveOption should remove the option with the given key from the backend.
 	//
 	// The object itself is returned to allow for method chaining.
-	RemoveOption(key string) URIPathBackend
+	RemoveOption(key string) Backend
 
 	// ReplaceOptions should replace all common options stored with the backend with the given options.
 	ReplaceOptions(options map[string]any)
@@ -81,7 +81,7 @@ type URIPathBackend interface {
 	// SetOption should set the option with the given key to the given value.
 	//
 	// The object itself is returned to allow for method chaining.
-	SetOption(key string, value any) URIPathBackend
+	SetOption(key string, value any) Backend
 
 	// URIPath should return the [URIPath] that the backend instance is associated with.
 	URIPath() *URIPath

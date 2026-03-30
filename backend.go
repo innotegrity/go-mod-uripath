@@ -6,7 +6,7 @@ import (
 	"go.innotegrity.dev/mod/xerrors"
 )
 
-// BackendBase provides default implementations for URIPathBackend methods and can be embedded in specific backend
+// BackendBase provides default implementations for Backend methods and can be embedded in specific backend
 // implementations to reduce boilerplate code. It also provides common options handling functionality.
 type BackendBase struct {
 	// unexported variables
@@ -72,7 +72,7 @@ func (f *BackendBase) RemoveAllOptions() {
 }
 
 // RemoveOption removes a specific option from the backend.
-func (b *BackendBase) RemoveOption(key string) URIPathBackend {
+func (b *BackendBase) RemoveOption(key string) Backend {
 	delete(b.options, key)
 	return b
 }
@@ -83,7 +83,7 @@ func (b *BackendBase) ReplaceOptions(options map[string]any) {
 }
 
 // SetOption sets a specific option in the backend.
-func (b *BackendBase) SetOption(key string, value any) URIPathBackend {
+func (b *BackendBase) SetOption(key string, value any) Backend {
 	b.options[key] = value
 	return b
 }

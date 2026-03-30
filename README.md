@@ -36,7 +36,7 @@
 
 ## 👁️ Overview
 
-`go.innotegrity.dev/mod/uripath` is a library which allows you to download, list, remove and upload content from various sources including the local filesystem, S3-compatible stores, git repositories, secrets managers and more.  The library allows you to extend the supported backend stores through its `RegisterBackend` function and the `URIPathBackend` interface.
+`go.innotegrity.dev/mod/uripath` is a library which allows you to download, list, remove and upload content from various sources including the local filesystem, S3-compatible stores, git repositories, secrets managers and more.  The library allows you to extend the supported backend stores through its `RegisterBackend` function and the `Backend` interface.
 
 Please review the [module documentation](https://pkg.go.dev/go.innotegrity.dev/mod/uripath) for details on how to properly use the functions and types contained in this module.
 

@@ -17,7 +17,7 @@ func init() {
 	RegisterBackend(FileScheme, NewFileBackend)
 }
 
-// FileBackend implements [URIPathBackend] for local file system operations.
+// FileBackend implements [Backend] for local file system operations.
 //
 // The following rules apply to the URI for a [FileBackend]:
 // - Absolute and relative paths without any scheme are supported for *nix and MacOS platforms.
@@ -40,7 +40,7 @@ type FileBackend struct {
 // Duplicate options passed to a function will override any options set in the backend.
 //
 // This function will never return an error.
-func NewFileBackend(uri *URIPath, options ...BackendOption) (URIPathBackend, xerrors.Error) {
+func NewFileBackend(uri *URIPath, options ...BackendOption) (Backend, xerrors.Error) {
 	// convert the path to an absolute path
 	if !filepath.IsAbs(uri.path) {
 		cwd, err := os.Getwd()

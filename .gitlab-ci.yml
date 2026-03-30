@@ -10,3 +10,17 @@ variables:
   SECRET_DETECTION_ENABLED: 'true'
 secret_detection:
   stage: secret-detection
+
+run_tests:
+  stage: test
+  script:
+    - echo "Running tests"
+    - mkdir -p coverage
+    - go mod tidy
+    - go test -coverprofile=./coverage/coverage.out -coverpkg=. -covermode=atomic .
+    - go tool cover -html=./coverage.out -o ./coverage/coverage.html
+    - echo "Uploading coverage report"
+    - curl -Os https://cli.codecov.io/latest/linux/codecov
+    - chmod +x codecov
+    - ./codecov upload -f coverage/coverage.out
+  coverage: '/total:\s+\(statements\)\s+\d+.\d+\%/'

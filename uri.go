@@ -3,11 +3,9 @@ package uripath
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/url"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -16,7 +14,7 @@ import (
 
 var (
 	// global registry for backend schemes
-	_backendRegistry = make(map[string]NewURIPathBackendFunc)
+	_backendRegistry = make(map[string]NewBackendFunc)
 	_registryMutex   sync.RWMutex
 )
 
@@ -44,14 +42,14 @@ var (
 // Users can also register custom backends for additional schemes using the [RegisterBackend] function.
 type URIPath struct {
 	// unexported variables
-	backend  URIPathBackend // backend which actually will be doing the work
-	fragment string         // fragment portion of URI (after '#')
-	host     string         // host portion of URI (after '//' and before next '/')
-	password string         // password portion of URI (after ':' in username:password)
-	path     string         // path portion of URI (after host and before '?')
-	query    url.Values     // query parameters (after '?')
-	scheme   string         // scheme portion of URI (before '://')
-	username string         // username portion of URI (before ':')
+	backend  Backend    // backend which actually will be doing the work
+	fragment string     // fragment portion of URI (after '#')
+	host     string     // host portion of URI (after '//' and before next '/')
+	password string     // password portion of URI (after ':' in username:password)
+	path     string     // path portion of URI (after host and before '?')
+	query    url.Values // query parameters (after '?')
+	scheme   string     // scheme portion of URI (before '://')
+	username string     // username portion of URI (before ':')
 }
 
 // RegisterBackend registers a backend for a specific scheme, allowing users to extend the functionality with
@@ -59,7 +57,7 @@ type URIPath struct {
 //
 // If a backend is already registered for the given scheme, it will be overwritten. Backends must be registered
 // before calling [ParseURI] with a URI that uses the corresponding scheme.
-func RegisterBackend(scheme string, newBackendFunc NewURIPathBackendFunc) {
+func RegisterBackend(scheme string, newBackendFunc NewBackendFunc) {
 	_registryMutex.Lock()
 	defer _registryMutex.Unlock()
 	_backendRegistry[strings.ToLower(scheme)] = newBackendFunc
@@ -134,14 +132,14 @@ func ParseURI(uri string, backendOptions ...BackendOption) (*URIPath, xerrors.Er
 }
 
 // Backend returns the backend associated with this URIPath.
-func (u *URIPath) Backend() URIPathBackend {
+func (u *URIPath) Backend() Backend {
 	return u.backend
 }
 
 // BackendAs returns the backend cast to the concrete type T.
 //
 // If the backend is not of type T, an error is returned.
-func BackendAs[T URIPathBackend](u *URIPath) (T, xerrors.Error) {
+func BackendAs[T Backend](u *URIPath) (T, xerrors.Error) {
 	backend, ok := u.backend.(T)
 	if !ok {
 		var zero T
@@ -155,7 +153,7 @@ func BackendAs[T URIPathBackend](u *URIPath) (T, xerrors.Error) {
 // The context and options passed to this function are passed directly to the backend. Be sure
 // to review the documentation for the backend to understand how the context and options are used.
 //
-// This function may return an error with any of the codes from the [URIPathBackend.Delete] method.
+// This function may return an error with any of the codes from the [Backend.Delete] method.
 func (u *URIPath) Delete(ctx context.Context, options ...BackendOption) xerrors.Error {
 	return u.backend.Delete(ctx, options...)
 }
@@ -165,7 +163,7 @@ func (u *URIPath) Delete(ctx context.Context, options ...BackendOption) xerrors.
 // The context and options passed to this function are passed directly to the backend. Be sure
 // to review the documentation for the backend to understand how the context and options are used.
 //
-// This function may return an error with any of the codes from the [URIPathBackend.Exists] method.
+// This function may return an error with any of the codes from the [Backend.Exists] method.
 func (u *URIPath) Exists(ctx context.Context, options ...BackendOption) (bool, xerrors.Error) {
 	return u.backend.Exists(ctx, options...)
 }
@@ -180,7 +178,7 @@ func (u *URIPath) Fragment() string {
 // The context and options passed to this function are passed directly to the backend. Be sure
 // to review the documentation for the backend to understand how the context and options are used.
 //
-// This function may return an error with any of the codes from the [URIPathBackend.Get] method.
+// This function may return an error with any of the codes from the [Backend.Get] method.
 func (u *URIPath) Get(ctx context.Context, options ...BackendOption) ([]byte, xerrors.Error) {
 	return u.backend.Get(ctx, options...)
 }
@@ -195,7 +193,7 @@ func (u *URIPath) Host() string {
 // The context and options passed to this function are passed directly to the backend. Be sure
 // to review the documentation for the backend to understand how the context and options are used.
 //
-// This function may return an error with any of the codes from the [URIPathBackend.List] method.
+// This function may return an error with any of the codes from the [Backend.List] method.
 func (u *URIPath) List(ctx context.Context, recurse bool, options ...BackendOption) ([]string, xerrors.Error) {
 	return u.backend.List(ctx, recurse, options...)
 }
@@ -225,7 +223,7 @@ func (u *URIPath) Path() string {
 // The context and options passed to this function are passed directly to the backend. Be sure
 // to review the documentation for the backend to understand how the context and options are used.
 //
-// This function may return an error with any of the codes from the [URIPathBackend.Put] method.
+// This function may return an error with any of the codes from the [Backend.Put] method.
 func (u *URIPath) Put(ctx context.Context, data []byte, options ...BackendOption) xerrors.Error {
 	return u.backend.Put(ctx, data, options...)
 }
@@ -233,6 +231,11 @@ func (u *URIPath) Put(ctx context.Context, data []byte, options ...BackendOption
 // Query returns the URI query parameters.
 func (u *URIPath) Query() url.Values {
 	return u.query
+}
+
+// ReplaceBackend replaces the backend associated with this URIPath.
+func (u *URIPath) ReplaceBackend(b Backend) {
+	u.backend = b
 }
 
 // Scheme returns the URI scheme (e.g., "s3", "file", "git").
@@ -311,49 +314,11 @@ func (u *URIPath) Username() string {
 	return u.username
 }
 
-// convertString converts a string to a type T using a type switch to handle common primitive types.
-func convertString[T any](s string) (T, error) {
-	var result T
-	switch any(result).(type) {
-	case int:
-		v, err := strconv.Atoi(s)
-		if err != nil {
-			return result, err
-		}
-		// Conversion through any to satisfy the compiler
-		result = any(v).(T)
-	case int64:
-		v, err := strconv.ParseInt(s, 10, 64)
-		if err != nil {
-			return result, err
-		}
-		result = any(v).(T)
-	case float64:
-		v, err := strconv.ParseFloat(s, 64)
-		if err != nil {
-			return result, err
-		}
-		result = any(v).(T)
-	case string:
-		result = any(s).(T)
-	case bool:
-		v, err := strconv.ParseBool(s)
-		if err != nil {
-			return result, err
-		}
-		result = any(v).(T)
-	default:
-		// Handle unsupported types or panic
-		return result, fmt.Errorf("unsupported type: %T", result)
-	}
-	return result, nil
-}
-
 // getBackend returns the backend factory function for a given scheme.
 //
 // This function may return an error with any of the following codes:
 //   - [SchemeNotFound]: the scheme is not registered
-func getBackend(scheme string) (NewURIPathBackendFunc, xerrors.Error) {
+func getBackend(scheme string) (NewBackendFunc, xerrors.Error) {
 	_registryMutex.RLock()
 	defer _registryMutex.RUnlock()
 

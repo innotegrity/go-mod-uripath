@@ -1,4 +1,4 @@
-package uripath
+package uripath_test
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"testing"
 
+	"go.innotegrity.dev/mod/uripath"
 	"go.innotegrity.dev/mod/xerrors"
 )
 
@@ -20,22 +21,24 @@ type testBackend struct {
 	putCalled    bool
 }
 
-func (b *testBackend) Delete(ctx context.Context, options ...BackendOption) xerrors.Error {
+func (b *testBackend) Delete(ctx context.Context, options ...uripath.BackendOption) xerrors.Error {
 	b.deleteCalled = true
 	return nil
 }
 
-func (b *testBackend) Exists(ctx context.Context, options ...BackendOption) (bool, xerrors.Error) {
+func (b *testBackend) Exists(ctx context.Context, options ...uripath.BackendOption) (bool, xerrors.Error) {
 	b.existsCalled = true
 	return b.existsValue, nil
 }
 
-func (b *testBackend) Get(ctx context.Context, options ...BackendOption) ([]byte, xerrors.Error) {
+func (b *testBackend) Get(ctx context.Context, options ...uripath.BackendOption) ([]byte, xerrors.Error) {
 	b.getCalled = true
 	return []byte("data"), nil
 }
 
-func (b *testBackend) List(ctx context.Context, recurse bool, options ...BackendOption) ([]string, xerrors.Error) {
+func (b *testBackend) List(ctx context.Context, recurse bool, options ...uripath.BackendOption) (
+	[]string, xerrors.Error) {
+
 	b.listCalled = true
 	return []string{"a", "b"}, nil
 }
@@ -44,7 +47,7 @@ func (b *testBackend) Options() map[string]any {
 	return map[string]any{}
 }
 
-func (b *testBackend) Put(ctx context.Context, data []byte, options ...BackendOption) xerrors.Error {
+func (b *testBackend) Put(ctx context.Context, data []byte, options ...uripath.BackendOption) xerrors.Error {
 	b.putCalled = true
 	return nil
 }
@@ -52,37 +55,37 @@ func (b *testBackend) Put(ctx context.Context, data []byte, options ...BackendOp
 func (b *testBackend) RemoveAllOptions() {
 }
 
-func (b *testBackend) RemoveOption(key string) URIPathBackend {
+func (b *testBackend) RemoveOption(key string) uripath.Backend {
 	return b
 }
 
 func (b *testBackend) ReplaceOptions(options map[string]any) {
 }
 
-func (b *testBackend) SetOption(key string, value any) URIPathBackend {
+func (b *testBackend) SetOption(key string, value any) uripath.Backend {
 	return b
 }
 
-func (b *testBackend) URIPath() *URIPath {
+func (b *testBackend) URIPath() *uripath.URIPath {
 	return nil
 }
 
 func TestParseURI_UnknownScheme(t *testing.T) {
-	_, err := ParseURI("nope://example/path")
+	_, err := uripath.ParseURI("nope://example/path")
 	if err == nil {
 		t.Fatal("expected error for unknown scheme")
 	}
 }
 
 func TestParseURI_InvalidURI(t *testing.T) {
-	_, err := ParseURI("://")
+	_, err := uripath.ParseURI("://")
 	if err == nil {
 		t.Fatal("expected error for invalid URI")
 	}
 }
 
 func TestParseURI_File(t *testing.T) {
-	u, err := ParseURI("file:///tmp/testfile?x=1&y=2#frag")
+	u, err := uripath.ParseURI("file:///tmp/testfile?x=1&y=2#frag")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -104,17 +107,17 @@ func TestParseURI_File(t *testing.T) {
 	}
 
 	str := u.String()
-	parsed2, err := ParseURI(str)
+	parsed2, err := uripath.ParseURI(str)
 	if err != nil {
 		t.Fatalf("unexpected error parsing String() output: %v", err)
 	}
 	if parsed2.Scheme() != "file" || parsed2.Path() != "/tmp/testfile" {
-		t.Fatalf("roundtrip ParseURI mismatch: %+v", parsed2)
+		t.Fatalf("roundtrip uripath.ParseURI mismatch: %+v", parsed2)
 	}
 }
 
 func TestURIPath_MarshalJSONAndText(t *testing.T) {
-	u, xerr := ParseURI("file:///tmp/testfile?x=1")
+	u, xerr := uripath.ParseURI("file:///tmp/testfile?x=1")
 	if xerr != nil {
 		t.Fatalf("unexpected error: %v", xerr)
 	}
@@ -143,9 +146,10 @@ func TestURIPath_MarshalJSONAndText(t *testing.T) {
 
 func TestURIPath_BackendAs(t *testing.T) {
 	stub := &testBackend{existsValue: true}
-	u := &URIPath{backend: stub}
+	u := &uripath.URIPath{}
+	u.ReplaceBackend(stub)
 
-	asStub, err := BackendAs[*testBackend](u)
+	asStub, err := uripath.BackendAs[*testBackend](u)
 	if err != nil {
 		t.Fatalf("expected no error from BackendAs[*testBackend], got %v", err)
 	}
@@ -153,15 +157,16 @@ func TestURIPath_BackendAs(t *testing.T) {
 		t.Fatal("expected the same backend from BackendAs")
 	}
 
-	_, err = BackendAs[*FileBackend](u)
+	_, err = uripath.BackendAs[*uripath.FileBackend](u)
 	if err == nil {
-		t.Fatal("expected error from BackendAs[*FileBackend] when backend type mismatch")
+		t.Fatal("expected error from BackendAs[*uripath.FileBackend] when backend type mismatch")
 	}
 }
 
 func TestURIPath_DelegatedMethods(t *testing.T) {
 	stub := &testBackend{existsValue: true}
-	u := &URIPath{backend: stub}
+	u := &uripath.URIPath{}
+	u.ReplaceBackend(stub)
 
 	if _, err := u.Exists(context.Background()); err != nil {
 		t.Fatalf("unexpected Exists error: %v", err)
@@ -205,7 +210,7 @@ func TestURIPath_DelegatedMethods(t *testing.T) {
 
 func TestParseURI_QueryAndFragment(t *testing.T) {
 	raw := "file:///tmp/foo?val=5#bar"
-	u, err := ParseURI(raw)
+	u, err := uripath.ParseURI(raw)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -219,11 +224,12 @@ func TestParseURI_QueryAndFragment(t *testing.T) {
 
 func TestParseURI_RegisterBackend(t *testing.T) {
 	// use a temporary scheme to avoid clashing with existing backends.
-	RegisterBackend("testscheme", func(uri *URIPath, options ...BackendOption) (URIPathBackend, xerrors.Error) {
+	uripath.RegisterBackend("testscheme", func(uri *uripath.URIPath, options ...uripath.BackendOption) (
+		uripath.Backend, xerrors.Error) {
 		return &testBackend{}, nil
 	})
 
-	u, err := ParseURI("testscheme://host/path")
+	u, err := uripath.ParseURI("testscheme://host/path")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -233,7 +239,7 @@ func TestParseURI_RegisterBackend(t *testing.T) {
 }
 
 func TestParseURI_SchemeLowercase(t *testing.T) {
-	u, err := ParseURI("FiLe:///tmp/test")
+	u, err := uripath.ParseURI("FiLe:///tmp/test")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -245,21 +251,21 @@ func TestParseURI_SchemeLowercase(t *testing.T) {
 func TestGetQueryOptionValue_FromURLValues(t *testing.T) {
 	query := url.Values{}
 	query.Set("boolkey", "true")
-	value := GetQueryOptionValue(false, "boolkey", query)
+	value := uripath.GetQueryOptionValue(false, "boolkey", query)
 	if value != true {
 		t.Fatalf("expected true, got %v", value)
 	}
 }
 
 func TestParseURI_NoSchemeAbsolutePath(t *testing.T) {
-	// absolute path without scheme should default to file backend
-	u, err := ParseURI("/tmp/absolute/path")
+	// Absolute path without scheme should be parsed as path-only, and backend falls back to file.
+	u, err := uripath.ParseURI("/tmp/absolute/path")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if u.Scheme() != "file" {
-		t.Fatalf("expected scheme file (default), got %q", u.Scheme())
+	if u.Scheme() != uripath.FileScheme {
+		t.Fatalf("expected file scheme for path-only URI, got %q", u.Scheme())
 	}
 	if u.Path() != "/tmp/absolute/path" {
 		t.Fatalf("expected path /tmp/absolute/path, got %q", u.Path())
@@ -267,14 +273,14 @@ func TestParseURI_NoSchemeAbsolutePath(t *testing.T) {
 }
 
 func TestParseURI_NoSchemeRelativePath(t *testing.T) {
-	// relative path without scheme should default to file backend
-	u, err := ParseURI("relative/path/file.txt", WithBackendOption("rel_root", "/root"))
+	// Relative path without scheme should be parsed as path-only, and backend falls back to file.
+	u, err := uripath.ParseURI("relative/path/file.txt", uripath.WithBackendOption("rel_root", "/root"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if u.Scheme() != "file" {
-		t.Fatalf("expected scheme file (default), got %q", u.Scheme())
+	if u.Scheme() != uripath.FileScheme {
+		t.Fatalf("expected file scheme for path-only URI, got %q", u.Scheme())
 	}
 	if u.Path() != "/root/relative/path/file.txt" {
 		t.Fatalf("expected path /root/relative/path/file.txt, got %q", u.Path())
@@ -283,7 +289,7 @@ func TestParseURI_NoSchemeRelativePath(t *testing.T) {
 
 func TestParseURI_WindowsPath(t *testing.T) {
 	// Windows-style path (backslashes will be parsed as part of the path)
-	u, err := ParseURI("file:///C:/Users/test/file.txt")
+	u, err := uripath.ParseURI("file:///C:/Users/test/file.txt")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -303,7 +309,7 @@ func TestParseURI_WindowsPath(t *testing.T) {
 
 func TestParseURI_RelativeLinuxPathWithFileScheme(t *testing.T) {
 	// relative path with explicit file scheme
-	u, err := ParseURI("file://relative/path/to/file.txt", WithBackendOption("rel_root", "/root"))
+	u, err := uripath.ParseURI("file://relative/path/to/file.txt", uripath.WithBackendOption("rel_root", "/root"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -318,6 +324,7 @@ func TestParseURI_RelativeLinuxPathWithFileScheme(t *testing.T) {
 		t.Fatalf("expected empty host, got %q", u.Host())
 	}
 }
+
 func TestParseURI_RelativeLinuxPathWithNoWorkingDir(t *testing.T) {
 	// save the original working directory so we can go back
 	originalWd, err := os.Getwd()
@@ -345,7 +352,7 @@ func TestParseURI_RelativeLinuxPathWithNoWorkingDir(t *testing.T) {
 	}
 
 	// relative path without a root should try and use current directory and fail because there are no permissions
-	_, err = ParseURI("file://relative/path/to/file.txt")
+	_, err = uripath.ParseURI("file://relative/path/to/file.txt")
 	if err == nil {
 		t.Fatalf("expected an error but got none")
 	}

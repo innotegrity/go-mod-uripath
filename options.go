@@ -1,11 +1,13 @@
 package uripath
 
 import (
+	"fmt"
 	"net/url"
+	"strconv"
 )
 
 // BackendOption is a function that can be used to pass custom options to a backend.
-type BackendOption func(URIPathBackend)
+type BackendOption func(Backend)
 
 // GetFnOptionValue is a helper function that returns the value of the option with the given key, first searching the
 // function options list then the backend options. If the option is not found, the default value is returned.
@@ -56,7 +58,45 @@ func GetQueryOptionValue[T any](defaultValue T, key string, queryParams url.Valu
 
 // WithBackendOption returns a [BackendOption] that sets the option with the given key to the given value.
 func WithBackendOption(key string, value any) BackendOption {
-	return func(b URIPathBackend) {
+	return func(b Backend) {
 		b.SetOption(key, value)
 	}
+}
+
+// convertString converts a string to a type T using a type switch to handle common primitive types.
+func convertString[T any](s string) (T, error) {
+	var result T
+	switch any(result).(type) {
+	case int:
+		v, err := strconv.Atoi(s)
+		if err != nil {
+			return result, err
+		}
+		// Conversion through any to satisfy the compiler
+		result = any(v).(T)
+	case int64:
+		v, err := strconv.ParseInt(s, 10, 64)
+		if err != nil {
+			return result, err
+		}
+		result = any(v).(T)
+	case float64:
+		v, err := strconv.ParseFloat(s, 64)
+		if err != nil {
+			return result, err
+		}
+		result = any(v).(T)
+	case string:
+		result = any(s).(T)
+	case bool:
+		v, err := strconv.ParseBool(s)
+		if err != nil {
+			return result, err
+		}
+		result = any(v).(T)
+	default:
+		// Handle unsupported types or panic
+		return result, fmt.Errorf("unsupported type: %T", result)
+	}
+	return result, nil
 }

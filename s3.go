@@ -24,7 +24,7 @@ func init() {
 	RegisterBackend(S3Scheme, NewS3Backend)
 }
 
-// S3Backend implements [URIPathBackend] for Amazon S3 resources.
+// S3Backend implements [Backend] for Amazon S3 resources.
 type S3Backend struct {
 	BackendBase
 
@@ -66,7 +66,7 @@ type S3Backend struct {
 // This function may return an error with any of the following codes:
 //   - [InvalidParameter]: the URI is not valid
 //   - [BackendInitError]: the S3 client could not be initialized
-func NewS3Backend(uri *URIPath, options ...BackendOption) (URIPathBackend, xerrors.Error) {
+func NewS3Backend(uri *URIPath, options ...BackendOption) (Backend, xerrors.Error) {
 	base := InitBackendBase(uri, options...)
 
 	// setup required client variables
