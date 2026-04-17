@@ -63,6 +63,17 @@ func WithBackendOption(key string, value any) BackendOption {
 	}
 }
 
+// WithBackendOptions returns a list of [BackendOption]s that set the options in the given map.
+func WithBackendOptions(options map[string]any) []BackendOption {
+	result := []BackendOption{}
+	for k, v := range options {
+		result = append(result, func(b Backend) {
+			b.SetOption(k, v)
+		})
+	}
+	return result
+}
+
 // convertString converts a string to a type T using a type switch to handle common primitive types.
 func convertString[T any](s string) (T, error) {
 	var result T
@@ -72,7 +83,6 @@ func convertString[T any](s string) (T, error) {
 		if err != nil {
 			return result, err
 		}
-		// Conversion through any to satisfy the compiler
 		result = any(v).(T)
 	case int64:
 		v, err := strconv.ParseInt(s, 10, 64)
@@ -95,7 +105,7 @@ func convertString[T any](s string) (T, error) {
 		}
 		result = any(v).(T)
 	default:
-		// Handle unsupported types or panic
+		// handle unsupported types
 		return result, fmt.Errorf("unsupported type: %T", result)
 	}
 	return result, nil

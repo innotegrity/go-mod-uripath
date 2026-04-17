@@ -1,27 +1,29 @@
 stages:
-- test
-- secret-detection
-sast:
-  stage: test
+  - testing
+  - security
+
 include:
-- template: Security/SAST.gitlab-ci.yml
-- template: Security/Secret-Detection.gitlab-ci.yml
+  - template: Security/SAST.gitlab-ci.yml
+  - template: Security/Secret-Detection.gitlab-ci.yml
+
 variables:
   SECRET_DETECTION_ENABLED: 'true'
-secret_detection:
-  stage: secret-detection
 
-unit-test:
-  image: golang:1.25.1-alpine
-  stage: test
+sast:
+  stage: security
+
+secret_detection:
+  stage: security
+
+go_unit_tests:
+  image: golang:1.25-alpine
+  stage: testing
   script:
+    - apk add --no-cache curl bash openjdk21
     - echo "Running tests"
     - mkdir -p coverage
     - go mod tidy
-    - go test -coverprofile=./coverage/coverage.out -coverpkg=. -covermode=atomic .
-    - go tool cover -html=./coverage.out -o ./coverage/coverage.html
+    - go test -coverprofile=./coverage/cover.out -coverpkg=./... -covermode=atomic ./...
     - echo "Uploading coverage report"
-    - curl -Os https://cli.codecov.io/latest/linux/codecov
-    - chmod +x codecov
-    - ./codecov upload -f coverage/coverage.out
+    - bash <(curl -Ls https://coverage.codacy.com/get.sh) report --force-coverage-parser go -r ./coverage/cover.out
   coverage: '/total:\s+\(statements\)\s+\d+.\d+\%/'

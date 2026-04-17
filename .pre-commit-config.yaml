@@ -16,3 +16,10 @@ repos:
     hooks:
       - id: go-mod-tidy
       - id: go-fmt
+  - repo: local
+    hooks:
+      - id: codacy-cli
+        name: Codacy CLI
+        entry: codacy-cli
+        language: system
+        pass_filenames: false

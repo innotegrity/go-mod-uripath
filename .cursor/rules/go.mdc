@@ -1,0 +1,18 @@
+---
+description: Enforce Go documentation standards (Go doc) for all .go files.
+globs: ["**/*.go"]
+alwaysApply: false
+---
+
+# Go Documentation Standards
+
+When writing or autocompleting comments in Go, always adhere to these rules:
+
+1. **Naming Start:** Every exported function, struct, and interface MUST start its comment with the name of the entity.
+   - *Example:* `// FunctionName does X...`
+2. **Package Comments:** Each package must have a package comment immediately preceding the `package` clause.
+   - *Format:* `// Package name provides...`
+3. **Punctuation:** Comments must be complete sentences ending with a period.
+4. **Godoc Compatibility:** Use standard Go doc formatting. Avoid using Markdown inside Go comments unless absolutely necessary for clarity in multi-line blocks.
+5. **No Redundancy:** Do not explain obvious implementation details; focus on the *purpose* and *usage* of the code.
+6. **Deprecation:** If marking something as deprecated, use the standard format: `// Deprecated: use NewFunction instead.`

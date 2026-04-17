@@ -2,5 +2,12 @@
 .DS_Store
 Thumbs.db
 
-# coverage / tests
+# IDE artifacts
+.cursor/rules/codacy.mdc
+
+# build/test artifacts
+.gitlab-ci-local/
+.gitlab-ci-local-variables.yml
 coverage
+.codacy/*
+!.codacy/codacy.yaml

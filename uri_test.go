@@ -3,15 +3,16 @@ package uripath_test
 import (
 	"context"
 	"encoding/json"
-	"net/url"
-	"os"
-	"runtime"
+	"fmt"
 	"testing"
 
-	"go.innotegrity.dev/mod/uripath"
 	"go.innotegrity.dev/mod/xerrors"
+
+	"go.innotegrity.dev/mod/uripath"
+	"go.innotegrity.dev/mod/uripath/backends/aws"
 )
 
+// testBackend is a minimal [uripath.Backend] stub used in tests.
 type testBackend struct {
 	deleteCalled bool
 	existsCalled bool
@@ -21,21 +22,25 @@ type testBackend struct {
 	putCalled    bool
 }
 
+// Delete implements [uripath.Backend].
 func (b *testBackend) Delete(ctx context.Context, options ...uripath.BackendOption) xerrors.Error {
 	b.deleteCalled = true
 	return nil
 }
 
+// Exists implements [uripath.Backend].
 func (b *testBackend) Exists(ctx context.Context, options ...uripath.BackendOption) (bool, xerrors.Error) {
 	b.existsCalled = true
 	return b.existsValue, nil
 }
 
+// Get implements [uripath.Backend].
 func (b *testBackend) Get(ctx context.Context, options ...uripath.BackendOption) ([]byte, xerrors.Error) {
 	b.getCalled = true
 	return []byte("data"), nil
 }
 
+// List implements [uripath.Backend].
 func (b *testBackend) List(ctx context.Context, recurse bool, options ...uripath.BackendOption) (
 	[]string, xerrors.Error) {
 
@@ -43,81 +48,169 @@ func (b *testBackend) List(ctx context.Context, recurse bool, options ...uripath
 	return []string{"a", "b"}, nil
 }
 
+// Options implements [uripath.Backend].
 func (b *testBackend) Options() map[string]any {
 	return map[string]any{}
 }
 
+// Put implements [uripath.Backend].
 func (b *testBackend) Put(ctx context.Context, data []byte, options ...uripath.BackendOption) xerrors.Error {
 	b.putCalled = true
 	return nil
 }
 
+// RemoveAllOptions implements [uripath.Backend].
 func (b *testBackend) RemoveAllOptions() {
 }
 
+// RemoveOption implements [uripath.Backend].
 func (b *testBackend) RemoveOption(key string) uripath.Backend {
 	return b
 }
 
+// ReplaceOptions implements [uripath.Backend].
 func (b *testBackend) ReplaceOptions(options map[string]any) {
 }
 
+// SetOption implements [uripath.Backend].
 func (b *testBackend) SetOption(key string, value any) uripath.Backend {
 	return b
 }
 
-func (b *testBackend) URIPath() *uripath.URIPath {
+// URI implements [uripath.Backend].
+func (b *testBackend) URI() *uripath.URI {
 	return nil
 }
 
-func TestParseURI_UnknownScheme(t *testing.T) {
-	_, err := uripath.ParseURI("nope://example/path")
-	if err == nil {
-		t.Fatal("expected error for unknown scheme")
+func TestRegisterBackend(t *testing.T) {
+	// use a temporary scheme to avoid clashing with existing backends.
+	xerr := uripath.RegisterBackend("testscheme", func(uri *uripath.URI, options ...uripath.BackendOption) (
+		uripath.Backend, xerrors.Error) {
+		return &testBackend{}, nil
+	})
+	if xerr != nil {
+		t.Fatalf("unexpected error registering backend: %v", xerr)
 	}
-}
 
-func TestParseURI_InvalidURI(t *testing.T) {
-	_, err := uripath.ParseURI("://")
-	if err == nil {
-		t.Fatal("expected error for invalid URI")
-	}
-}
-
-func TestParseURI_File(t *testing.T) {
-	u, err := uripath.ParseURI("file:///tmp/testfile?x=1&y=2#frag")
+	u, err := uripath.ParseURI("testscheme://host/path")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
-	if u.Scheme() != "file" {
-		t.Fatalf("expected scheme file, got %q", u.Scheme())
-	}
-	if u.Path() != "/tmp/testfile" {
-		t.Fatalf("expected path /tmp/testfile, got %q", u.Path())
-	}
-	if u.Host() != "" {
-		t.Fatalf("expected empty host, got %q", u.Host())
-	}
-	if u.Fragment() != "frag" {
-		t.Fatalf("expected fragment frag, got %q", u.Fragment())
-	}
-	if q := u.Query(); q.Get("x") != "1" || q.Get("y") != "2" {
-		t.Fatalf("unexpected query map: %v", q)
+	if u.Scheme() != "testscheme" {
+		t.Fatalf("expected scheme testscheme, got %q", u.Scheme())
 	}
 
-	str := u.String()
-	parsed2, err := uripath.ParseURI(str)
-	if err != nil {
-		t.Fatalf("unexpected error parsing String() output: %v", err)
-	}
-	if parsed2.Scheme() != "file" || parsed2.Path() != "/tmp/testfile" {
-		t.Fatalf("roundtrip uripath.ParseURI mismatch: %+v", parsed2)
+	// try to register an invalid scheme
+	xerr = uripath.RegisterBackend("invalid_scheme", func(uri *uripath.URI, options ...uripath.BackendOption) (
+		uripath.Backend, xerrors.Error) {
+		return nil, nil
+	})
+	if xerr == nil {
+		t.Fatal("expected error from invalid backend registration")
+	} else if xerr.Code() != uripath.InvalidParameter {
+		t.Fatalf("expected error code %d, got error code %d", uripath.InvalidParameter, xerr.Code())
 	}
 }
 
-func TestURIPath_MarshalJSONAndText(t *testing.T) {
-	u, xerr := uripath.ParseURI("file:///tmp/testfile?x=1")
+func TestRegisterBackend_WithOverwrite(t *testing.T) {
+	scheme := "overwrite"
+	firstBackend := func(uri *uripath.URI, options ...uripath.BackendOption) (uripath.Backend, xerrors.Error) {
+		return &testBackend{existsValue: false}, nil
+	}
+	secondBackend := func(uri *uripath.URI, options ...uripath.BackendOption) (uripath.Backend, xerrors.Error) {
+		return &testBackend{existsValue: true}, nil
+	}
+
+	if xerr := uripath.RegisterBackend(scheme, firstBackend, true); xerr != nil {
+		t.Fatalf("unexpected error registering first backend: %v", xerr)
+	}
+	xerr := uripath.RegisterBackend(scheme, secondBackend)
+	if xerr == nil {
+		t.Fatal("expected duplicate registration error without overwrite")
+	} else if xerr.Code() != uripath.SchemeExists {
+		t.Fatalf("expected error code %d, got error code %d", uripath.SchemeExists, xerr.Code())
+	}
+	if err := uripath.RegisterBackend(scheme, secondBackend, true); err != nil {
+		t.Fatalf("unexpected error overwriting backend: %v", err)
+	}
+}
+
+func TestBackendAs_CustomBackend(t *testing.T) {
+	scheme := "custom"
+	backend := func(uri *uripath.URI, options ...uripath.BackendOption) (uripath.Backend, xerrors.Error) {
+		return &testBackend{existsValue: true}, nil
+	}
+	if xerr := uripath.RegisterBackend(scheme, backend); xerr != nil {
+		t.Fatalf("unexpected error registering backend: %v", xerr)
+	}
+
+	u, err := uripath.ParseURI("custom:///root/host/path")
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+	b, castErr := uripath.BackendAs[*testBackend](u)
+	if castErr != nil {
+		t.Fatalf("unexpected cast error: %v", castErr)
+	}
+	if !b.existsValue {
+		t.Fatal("expected overwritten backend to be in use")
+	}
+}
+
+func TestURI_UnknownScheme(t *testing.T) {
+	_, xerr := uripath.ParseURI("nope://example/path")
+	if xerr == nil {
+		t.Fatal("expected error for unknown scheme")
+	} else if xerr.Code() != uripath.SchemeNotFound {
+		t.Fatalf("expected error code %d, got error code %d", uripath.SchemeNotFound, xerr.Code())
+	}
+}
+
+func TestURI_BackendNewReturnsError(t *testing.T) {
+	scheme := "failinit"
+	if xerr := uripath.RegisterBackend(scheme, func(uri *uripath.URI, options ...uripath.BackendOption) (
+		uripath.Backend, xerrors.Error) {
+		return nil, xerrors.Newf(uripath.BackendInitError, "constructor failed")
+	}, true); xerr != nil {
+		t.Fatalf("unexpected register error: %v", xerr)
+	}
+
+	_, xerr := uripath.ParseURI(scheme + "://host/path")
+	if xerr == nil {
+		t.Fatal("expected error when backend constructor fails")
+	}
+	if xerr.Code() != uripath.BackendInitError {
+		t.Fatalf("expected error code %d, got %d", uripath.BackendInitError, xerr.Code())
+	}
+}
+
+func TestURI_GetBackendInvalidScheme(t *testing.T) {
+	t.Run("scheme format invalid", func(t *testing.T) {
+		// getBackend runs validateScheme; a scheme must start with a letter.
+		_, xerr := uripath.ParseURI("invalid=scheme://host/path")
+		if xerr == nil {
+			t.Fatal("expected error for invalid scheme format")
+		}
+		if xerr.Code() != uripath.InvalidParameter {
+			t.Fatalf("expected error code %d, got %d", uripath.InvalidParameter, xerr.Code())
+		}
+	})
+
+	t.Run("scheme not registered", func(t *testing.T) {
+		_, xerr := uripath.ParseURI("notregistered://host/path")
+		if xerr == nil {
+			t.Fatal("expected error for unregistered scheme")
+		}
+		if xerr.Code() != uripath.SchemeNotFound {
+			t.Fatalf("expected error code %d, got %d", uripath.SchemeNotFound, xerr.Code())
+		}
+	})
+}
+
+func TestURI_MarshalJSONAndText(t *testing.T) {
+	uri := "s3://aws_access_key_id:aws_secret_access_key@some.bucket.url/path/to/file.txt?x=1&y=2#frag"
+
+	u, xerr := uripath.ParseURI(uri)
 	if xerr != nil {
 		t.Fatalf("unexpected error: %v", xerr)
 	}
@@ -144,10 +237,9 @@ func TestURIPath_MarshalJSONAndText(t *testing.T) {
 	}
 }
 
-func TestURIPath_BackendAs(t *testing.T) {
+func TestURI_BackendAs(t *testing.T) {
 	stub := &testBackend{existsValue: true}
-	u := &uripath.URIPath{}
-	u.ReplaceBackend(stub)
+	u := &uripath.URI{Backend: stub}
 
 	asStub, err := uripath.BackendAs[*testBackend](u)
 	if err != nil {
@@ -157,16 +249,15 @@ func TestURIPath_BackendAs(t *testing.T) {
 		t.Fatal("expected the same backend from BackendAs")
 	}
 
-	_, err = uripath.BackendAs[*uripath.FileBackend](u)
+	_, err = uripath.BackendAs[*aws.S3Backend](u)
 	if err == nil {
-		t.Fatal("expected error from BackendAs[*uripath.FileBackend] when backend type mismatch")
+		t.Fatal("expected error from BackendAs[*aws.S3Backend] when backend type mismatch")
 	}
 }
 
-func TestURIPath_DelegatedMethods(t *testing.T) {
+func TestURI_DelegatedMethods(t *testing.T) {
 	stub := &testBackend{existsValue: true}
-	u := &uripath.URIPath{}
-	u.ReplaceBackend(stub)
+	u := &uripath.URI{Backend: stub}
 
 	if _, err := u.Exists(context.Background()); err != nil {
 		t.Fatalf("unexpected Exists error: %v", err)
@@ -203,160 +294,100 @@ func TestURIPath_DelegatedMethods(t *testing.T) {
 		t.Fatal("Expected Delete to be called on backend")
 	}
 
-	if u.Backend() != stub {
+	if u.Backend != stub {
 		t.Fatal("Expected Backend() to return underlying backend")
 	}
 }
 
-func TestParseURI_QueryAndFragment(t *testing.T) {
-	raw := "file:///tmp/foo?val=5#bar"
-	u, err := uripath.ParseURI(raw)
+func TestURI_UnmarshalJSONAndText(t *testing.T) {
+	uri := "s3://aws_access_key_id:aws_secret_access_key@some.bucket.url/path/to/file.txt?x=1&y=2#frag"
+	expectedPath := "/path/to/file.txt"
+	expectedQuery := map[string]string{
+		"x": "1",
+		"y": "2",
+	}
+	expectedFragment := "frag"
+
+	// Test UnmarshalJSON success
+	jsonData := []byte(fmt.Sprintf(`"%s"`, uri))
+	var u1 uripath.URI
+	err := json.Unmarshal(jsonData, &u1)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if u.Query()["val"][0] != "5" {
-		t.Fatalf("expected query val=5, got %v", u.Query())
-	}
-	if u.Fragment() != "bar" {
-		t.Fatalf("expected fragment bar, got %q", u.Fragment())
-	}
-}
-
-func TestParseURI_RegisterBackend(t *testing.T) {
-	// use a temporary scheme to avoid clashing with existing backends.
-	uripath.RegisterBackend("testscheme", func(uri *uripath.URIPath, options ...uripath.BackendOption) (
-		uripath.Backend, xerrors.Error) {
-		return &testBackend{}, nil
-	})
-
-	u, err := uripath.ParseURI("testscheme://host/path")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if u.Scheme() != "testscheme" {
-		t.Fatalf("expected scheme testscheme, got %q", u.Scheme())
-	}
-}
-
-func TestParseURI_SchemeLowercase(t *testing.T) {
-	u, err := uripath.ParseURI("FiLe:///tmp/test")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if u.Scheme() != "file" {
-		t.Fatalf("expected scheme file (lowercased), got %q", u.Scheme())
-	}
-}
-
-func TestGetQueryOptionValue_FromURLValues(t *testing.T) {
-	query := url.Values{}
-	query.Set("boolkey", "true")
-	value := uripath.GetQueryOptionValue(false, "boolkey", query)
-	if value != true {
-		t.Fatalf("expected true, got %v", value)
-	}
-}
-
-func TestParseURI_NoSchemeAbsolutePath(t *testing.T) {
-	// Absolute path without scheme should be parsed as path-only, and backend falls back to file.
-	u, err := uripath.ParseURI("/tmp/absolute/path")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("unexpected error from UnmarshalJSON: %v", err)
 	}
 
-	if u.Scheme() != uripath.FileScheme {
-		t.Fatalf("expected file scheme for path-only URI, got %q", u.Scheme())
+	if u1.Scheme() != aws.S3Scheme {
+		t.Fatalf("expected scheme %q, got %q", aws.S3Scheme, u1.Scheme())
 	}
-	if u.Path() != "/tmp/absolute/path" {
-		t.Fatalf("expected path /tmp/absolute/path, got %q", u.Path())
+	if u1.Path != expectedPath {
+		t.Fatalf("expected path %q, got %q", expectedPath, u1.Path)
 	}
-}
-
-func TestParseURI_NoSchemeRelativePath(t *testing.T) {
-	// Relative path without scheme should be parsed as path-only, and backend falls back to file.
-	u, err := uripath.ParseURI("relative/path/file.txt", uripath.WithBackendOption("rel_root", "/root"))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if u1.Fragment != expectedFragment {
+		t.Fatalf("expected fragment %q, got %q", expectedFragment, u1.Fragment)
+	}
+	if q := u1.Query; q.Get("x") != expectedQuery["x"] || q.Get("y") != expectedQuery["y"] {
+		t.Fatalf("unexpected query map: %v", q)
 	}
 
-	if u.Scheme() != uripath.FileScheme {
-		t.Fatalf("expected file scheme for path-only URI, got %q", u.Scheme())
-	}
-	if u.Path() != "/root/relative/path/file.txt" {
-		t.Fatalf("expected path /root/relative/path/file.txt, got %q", u.Path())
-	}
-}
-
-func TestParseURI_WindowsPath(t *testing.T) {
-	// Windows-style path (backslashes will be parsed as part of the path)
-	u, err := uripath.ParseURI("file:///C:/Users/test/file.txt")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if u.Scheme() != "file" {
-		t.Fatalf("expected scheme file, got %q", u.Scheme())
-	}
-
-	expectedPath := "/C:/Users/test/file.txt"
-	if runtime.GOOS == "windows" {
-		expectedPath = "C:\\Users\\test\\file.txt"
-	}
-	if u.Path() != expectedPath {
-		t.Fatalf("expected path %s, got %q", expectedPath, u.Path())
-	}
-}
-
-func TestParseURI_RelativeLinuxPathWithFileScheme(t *testing.T) {
-	// relative path with explicit file scheme
-	u, err := uripath.ParseURI("file://relative/path/to/file.txt", uripath.WithBackendOption("rel_root", "/root"))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if u.Scheme() != "file" {
-		t.Fatalf("expected scheme file, got %q", u.Scheme())
-	}
-	if u.Path() != "/root/relative/path/to/file.txt" {
-		t.Fatalf("expected path /root/relative/path/to/file.txt, got %q", u.Path())
-	}
-	if u.Host() != "" {
-		t.Fatalf("expected empty host, got %q", u.Host())
-	}
-}
-
-func TestParseURI_RelativeLinuxPathWithNoWorkingDir(t *testing.T) {
-	// save the original working directory so we can go back
-	originalWd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get initial wd: %v", err)
-	}
-	defer os.Chdir(originalWd)
-
-	// create a temporary directory
-	tmpDir, err := os.MkdirTemp("", "vanishing-dir")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-
-	// change into that directory
-	err = os.Chdir(tmpDir)
-	if err != nil {
-		t.Fatalf("failed to chdir: %v", err)
-	}
-
-	// remove all permissions
-	err = os.Chmod(tmpDir, 0000)
-	if err != nil {
-		t.Fatalf("failed to make directory inaccessible: %v", err)
-	}
-
-	// relative path without a root should try and use current directory and fail because there are no permissions
-	_, err = uripath.ParseURI("file://relative/path/to/file.txt")
+	// Test UnmarshalJSON with invalid JSON
+	invalidJSONData := []byte{'{', 7, '}'}
+	var u2 uripath.URI
+	err = u2.UnmarshalJSON(invalidJSONData)
 	if err == nil {
-		t.Fatalf("expected an error but got none")
+		t.Fatal("expected error from UnmarshalJSON with invalid JSON")
 	}
 
-	// try and cleanup
-	os.RemoveAll(tmpDir)
+	// Test UnmarshalText success
+	textData := []byte(uri)
+	var u3 uripath.URI
+	err = u3.UnmarshalText(textData)
+	if err != nil {
+		t.Fatalf("unexpected error from UnmarshalText: %v", err)
+	}
+
+	if u3.Scheme() != aws.S3Scheme {
+		t.Fatalf("expected scheme %q, got %q", aws.S3Scheme, u3.Scheme())
+	}
+	if u3.Path != expectedPath {
+		t.Fatalf("expected path %q, got %q", expectedPath, u3.Path)
+	}
+	if u3.Fragment != expectedFragment {
+		t.Fatalf("expected fragment %q, got %q", expectedFragment, u3.Fragment)
+	}
+	if q := u3.Query; q.Get("x") != expectedQuery["x"] || q.Get("y") != expectedQuery["y"] {
+		t.Fatalf("unexpected query map: %v", q)
+	}
+}
+
+func TestURI_InvalidURI(t *testing.T) {
+	_, xerr := uripath.ParseURI("foo://user:pass%x@bar")
+	if xerr == nil {
+		t.Fatal("expected error from ParseURI with invalid URI")
+	} else if xerr.Code() != uripath.InvalidParameter {
+		t.Fatalf("expected error code %d, got error code %d", uripath.InvalidParameter, xerr.Code())
+	}
+
+	u := &uripath.URI{}
+	err := u.UnmarshalJSON([]byte(`"foo://user:pass%x@bar"`))
+	if err == nil {
+		t.Fatal("expected error from UnmarshalJSON with invalid URI")
+	}
+
+	err = u.UnmarshalText([]byte("foo://user:pass%x@bar"))
+	if err == nil {
+		t.Fatal("expected error from UnmarshalText with invalid URI")
+	}
+}
+
+func TestURI_String(t *testing.T) {
+	uri := "s3://aws_access_key_id:aws_secret_access_key@some.bucket.url/path/to/file.txt?x=1&y=2#frag"
+	u, err := uripath.ParseURI(uri)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := u.String()
+	if u.String() != uri {
+		t.Fatalf("expected output %q, got %q", uri, output)
+	}
 }

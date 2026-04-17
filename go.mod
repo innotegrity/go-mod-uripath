@@ -1,13 +1,13 @@
 module go.innotegrity.dev/mod/uripath
 
-go 1.25.1
+go 1.25.9
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.41.5
 	github.com/aws/aws-sdk-go-v2/config v1.32.13
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.13
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.97.3
-	go.innotegrity.dev/mod/xerrors v0.6.0
+	go.innotegrity.dev/mod/xerrors v0.7.0
 	go.uber.org/mock v0.6.0
 )
 

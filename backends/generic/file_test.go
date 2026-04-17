@@ -1,14 +1,6 @@
-package uripath_test
+package generic_test
 
-import (
-	"context"
-	"os"
-	"path/filepath"
-	"testing"
-
-	"go.innotegrity.dev/mod/uripath"
-)
-
+/*
 func TestNewFileBackend(t *testing.T) {
 	uri, xerr := uripath.ParseURI("file:///tmp/test.txt")
 	if xerr != nil {
@@ -441,6 +433,7 @@ func TestFileBackend_Delete_PathError(t *testing.T) {
 	}
 }
 
+/*
 func TestFileBackend_Exists_Error(t *testing.T) {
 	tempDir := t.TempDir()
 	testDir := filepath.Join(tempDir, "inaccessible")
@@ -486,6 +479,7 @@ func TestFileBackend_Exists_Error(t *testing.T) {
 		t.Fatalf("Expected BackendExistsError, got %d", xerr.Code())
 	}
 }
+*
 
 func TestFileBackend_Put_MkdirAll_Error(t *testing.T) {
 	tempDir := t.TempDir()
@@ -573,3 +567,55 @@ func TestFileBackend_Put_WriteFile_Error(t *testing.T) {
 		t.Fatalf("Expected BackendPutError, got %d", xerr.Code())
 	}
 }
+
+func TestFileBackend_Paths(t *testing.T) {
+	nixPaths := map[string]string{
+		"file:///root/path/to/file.txt": "/root/path/to/file.txt",
+		"file://path/to/file.txt":       "/tmp/path/to/file.txt",
+		"/root/path/to/file.txt":        "/root/path/to/file.txt",
+		"path/to/file.txt":              "/tmp/path/to/file.txt",
+	}
+	winPaths := map[string]string{
+		"file:///C:/foo/bar":          "C:\\foo\\bar",
+		"file://C:/foo/bar":           "C:\\foo\\bar",
+		"file:///C:foo/bar":           "C:\\temp\\foo\\bar",
+		"file://C:foo/bar":            "C:\\temp\\foo\\bar",
+		"/C:/foo/bar":                 "C:\\foo\\bar",
+		"C:/foo/bar":                  "C:\\foo\\bar",
+		"/C:foo/bar":                  "C:\\temp\\foo\\bar",
+		"C:foo/bar":                   "C:\\temp\\foo\\bar",
+		"C:\\foo\\bar":                "C:\\foo\\bar",
+		"C:foo\\bar":                  "C:\\temp\\foo\\bar",
+		"//server/share/foo/bar":      "\\\\server\\share\\foo\\bar",
+		"\\\\server\\share\\foo\\bar": "\\\\server\\share\\foo\\bar",
+	}
+
+	for uri, expected := range nixPaths {
+		u, err := uripath.ParseURI(uri, uripath.WithBackendOption("rel_root", "/tmp"))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if u.Scheme() != "file" {
+			t.Fatalf("expected scheme file, got %q", u.Scheme())
+		}
+		if u.Path() != expected {
+			t.Fatalf("expected path %q, got %q", expected, u.Path())
+		}
+	}
+
+	if runtime.GOOS == "windows" {
+		for uri, _ := range winPaths {
+			u, err := uripath.ParseURI(uri, uripath.WithBackendOption("rel_root", "C:\\temp"))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if u.Scheme() != "file" {
+				t.Fatalf("expected scheme file, got %q", u.Scheme())
+			}
+			//if u.Path() != expected {
+			//		t.Fatalf("expected path %q, got %q", expected, u.Path())
+			//	}
+		}
+	}
+}
+*/

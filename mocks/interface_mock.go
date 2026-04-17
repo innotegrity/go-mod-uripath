@@ -207,18 +207,18 @@ func (mr *MockBackendMockRecorder) SetOption(key, value any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetOption", reflect.TypeOf((*MockBackend)(nil).SetOption), key, value)
 }
 
-// URIPath mocks base method.
-func (m *MockBackend) URIPath() *uripath.URIPath {
+// URI mocks base method.
+func (m *MockBackend) URI() *uripath.URI {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "URIPath")
-	ret0, _ := ret[0].(*uripath.URIPath)
+	ret := m.ctrl.Call(m, "URI")
+	ret0, _ := ret[0].(*uripath.URI)
 	return ret0
 }
 
-// URIPath indicates an expected call of URIPath.
-func (mr *MockBackendMockRecorder) URIPath() *gomock.Call {
+// URI indicates an expected call of URI.
+func (mr *MockBackendMockRecorder) URI() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "URIPath", reflect.TypeOf((*MockBackend)(nil).URIPath))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "URI", reflect.TypeOf((*MockBackend)(nil).URI))
 }
 
 // MockS3ClientAPI is a mock of S3ClientAPI interface.
