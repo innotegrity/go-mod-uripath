@@ -7,7 +7,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.32.13
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.13
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.97.3
-	go.innotegrity.dev/mod/xerrors v0.7.0
+	go.innotegrity.dev/mod/xerrors v0.13.0
 	go.uber.org/mock v0.6.0
 )
 

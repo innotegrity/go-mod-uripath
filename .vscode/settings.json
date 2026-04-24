@@ -1,0 +1,21 @@
+{
+    "sonarlint.connectedMode.project": {
+        "connectionId": "innotegrity",
+        "projectKey": "innotegrity_go-mod-uripath"
+    },
+    "go.lintTool": "golangci-lint-v2",
+    "go.lintFlags": [
+        "--issues-exit-code=0"
+    ],
+    "go.lintOnSave": "package",
+    "gopls": {
+        "formatting.gofumpt": true,
+        "ui.diagnostic.staticcheck": false,
+    },
+    "go.testFlags": [
+        "-covermode=atomic"
+    ],
+    "files.associations": {
+        "*.mdc": "markdown"
+    }
+}

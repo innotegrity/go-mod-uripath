@@ -13,6 +13,7 @@ import (
 	"go.innotegrity.dev/mod/xerrors"
 
 	"go.innotegrity.dev/mod/uripath"
+	urierrors "go.innotegrity.dev/mod/uripath/errors"
 )
 
 const (
@@ -20,8 +21,8 @@ const (
 	S3Scheme = "s3"
 )
 
-func init() {
-	_ = uripath.RegisterBackend(S3Scheme, NewS3Backend)
+func init() { //nolint:gochecknoinits // this is a special case where we want to register the backend at startup
+	_ = uripath.RegisterBackend(context.Background(), S3Scheme, NewS3Backend)
 }
 
 // S3ClientAPI is used for interacting with the S3 API but allows us to mock it for testing.
@@ -88,16 +89,21 @@ type S3Backend struct {
 //
 // Options passed via query parameters take precedence over those passed in via the list of backend options.
 //
-// This function may return an error with any of the following codes:
+// This function may return any one of the following errors:
 //   - [uripath.InvalidParameter]: the URI is not valid
 //   - [uripath.BackendInitError]: the S3 client could not be initialized
-func NewS3Backend(uri *uripath.URI, options ...uripath.BackendOption) (uripath.Backend, xerrors.Error) {
+//
+//nolint:ireturn // need to return an interface for [uripath.NewBackendFunc] function signature.
+func NewS3Backend(ctx context.Context, uri *uripath.URI, options ...uripath.BackendOption) (
+	uripath.Backend, xerrors.Error,
+) {
 	// validate the URI settings
 	bucket := uri.Host
 	if bucket == "" {
-		return nil, xerrors.Newf(uripath.InvalidParameter, "s3 URI must include the bucket name as the host").
-			WithAttr("uri", uri.String())
+		return nil, urierrors.NewInvalidParameterError(ctx, nil,
+			"s3 URI must include the bucket name as the host").WithAttr("uri", uri.String())
 	}
+
 	key := strings.TrimPrefix(uri.Path, "/")
 
 	// initialize the backend
@@ -114,52 +120,53 @@ func NewS3Backend(uri *uripath.URI, options ...uripath.BackendOption) (uripath.B
 			backend.Client = cli
 		}
 	} else {
-		cfg, xerr := LoadDefaultConfig(uri, options...)
+		cfg, xerr := LoadDefaultConfig(ctx, uri, options...)
 		if xerr != nil {
 			return nil, xerr
 		}
+
 		backend.Client = s3.NewFromConfig(cfg)
 	}
+
 	return backend, nil
 }
 
 // Delete removes an object from the S3 bucket.
 //
-// The context passed to this function is passed to the S3 client.
+// There are no options for this function.
 //
-// The options passed to this function are not used.
-//
-// This function may return an error with any of the following codes:
+// This function may return any one of the following errors:
 //   - [BackendDeleteError]: the object could not be deleted
-func (s *S3Backend) Delete(ctx context.Context, options ...uripath.BackendOption) xerrors.Error {
+func (s *S3Backend) Delete(ctx context.Context, _ ...uripath.BackendOption) xerrors.Error {
 	input := &s3.DeleteObjectInput{
 		Bucket: aws.String(s.Bucket),
 		Key:    aws.String(s.Key),
 	}
+
 	_, err := s.Client.DeleteObject(ctx, input)
 	if err != nil {
-		return xerrors.Wrapf(uripath.BackendDeleteError, err, "failed to delete S3 object '%s/%s': %s", s.Bucket,
+		return urierrors.NewBackendDeleteError(ctx, err, "failed to delete S3 object '%s/%s': %s", s.Bucket,
 			s.Key, err.Error()).WithAttrs(map[string]any{
 			"bucket": s.Bucket,
 			"key":    s.Key,
 		})
 	}
+
 	return nil
 }
 
 // Exists checks if an object exists in the S3 bucket.
 //
-// The context passed to this function is passed to the S3 client.
+// There are no options for this function.
 //
-// The options passed to this function are not used.
-//
-// This function may return an error with any of the following codes:
+// This function may return any one of the following errors:
 //   - [BackendExistsError]: the object could not be checked
-func (s *S3Backend) Exists(ctx context.Context, options ...uripath.BackendOption) (bool, xerrors.Error) {
+func (s *S3Backend) Exists(ctx context.Context, _ ...uripath.BackendOption) (bool, xerrors.Error) {
 	input := &s3.HeadObjectInput{
 		Bucket: aws.String(s.Bucket),
 		Key:    aws.String(s.Key),
 	}
+
 	_, err := s.Client.HeadObject(ctx, input)
 	if err != nil {
 		var ea *types.NotFound
@@ -171,107 +178,114 @@ func (s *S3Backend) Exists(ctx context.Context, options ...uripath.BackendOption
 		if strings.Contains(err.Error(), "NotFound") || strings.Contains(err.Error(), "404") {
 			return false, nil
 		}
-		return false, xerrors.Wrapf(uripath.BackendExistsError, err,
+
+		return false, urierrors.NewBackendExistsError(ctx, err,
 			"failed to check for existence of S3 object '%s/%s': %s", s.Bucket, s.Key, err.Error()).
 			WithAttrs(map[string]any{
 				"bucket": s.Bucket,
 				"key":    s.Key,
 			})
 	}
+
 	return true, nil
 }
 
 // Get returns the contents of an object in the S3 bucket.
 //
-// The context passed to this function is passed to the S3 client.
+// There are no options for this function.
 //
-// The options passed to this function are not used.
-//
-// This function may return an error with any of the following codes:
+// This function may return any one of the following errors:
 //   - [BackendGetError]: the object could not be read
-func (s *S3Backend) Get(ctx context.Context, options ...uripath.BackendOption) ([]byte, xerrors.Error) {
+func (s *S3Backend) Get(ctx context.Context, _ ...uripath.BackendOption) ([]byte, xerrors.Error) {
 	input := &s3.GetObjectInput{
 		Bucket: aws.String(s.Bucket),
 		Key:    aws.String(s.Key),
 	}
+
 	out, err := s.Client.GetObject(ctx, input)
 	if err != nil {
-		return nil, xerrors.Wrapf(uripath.BackendGetError, err, "failed to get S3 object '%s/%s': %s", s.Bucket, s.Key,
+		return nil, urierrors.NewBackendGetError(ctx, err, "failed to get S3 object '%s/%s': %s", s.Bucket, s.Key,
 			err.Error()).WithAttrs(map[string]any{
 			"bucket": s.Bucket,
 			"key":    s.Key,
 		})
 	}
+
 	defer func() {
 		_ = out.Body.Close()
 	}()
+
 	buf := new(bytes.Buffer)
-	if _, readErr := buf.ReadFrom(out.Body); readErr != nil {
-		return nil, xerrors.Wrapf(uripath.BackendGetError, readErr, "failed reading body of S3 object '%s/%s': %s",
+
+	_, readErr := buf.ReadFrom(out.Body)
+	if readErr != nil {
+		return nil, urierrors.NewBackendGetError(ctx, readErr, "failed reading body of S3 object '%s/%s': %s",
 			s.Bucket, s.Key, readErr.Error()).WithAttrs(map[string]any{
 			"bucket": s.Bucket,
 			"key":    s.Key,
 		})
 	}
+
 	return buf.Bytes(), nil
 }
 
 // List returns a list of objects in the S3 bucket.
 //
-// The context passed to this function is passed to the S3 client.
+// There are no options for this function.
 //
-// The options passed to this function are not used.
-//
-// The recurse flag is not used for S3 buckets as S3 objects are not organized into directories.
-//
-// This function may return an error with any of the following codes:
+// This function may return any one of the following errors:
 //   - [BackendListError]: the objects could not be listed
-func (s *S3Backend) List(ctx context.Context, recurse bool, options ...uripath.BackendOption) (
-	[]string, xerrors.Error) {
+func (s *S3Backend) List(ctx context.Context, recurse bool, _ ...uripath.BackendOption) (
+	[]string, xerrors.Error,
+) {
 	prefix := normalizeS3ListPrefix(s.Key)
 	input := newListObjectsV2Input(s.Bucket, prefix, recurse)
 
 	var results []string
+
 	for {
 		out, err := s.Client.ListObjectsV2(ctx, input)
 		if err != nil {
-			return nil, xerrors.Wrapf(uripath.BackendListError, err, "failed to list S3 path '%s/%s': %s", s.Bucket,
+			return nil, urierrors.NewBackendListError(ctx, err, "failed to list S3 path '%s/%s': %s", s.Bucket,
 				s.Key, err.Error()).WithAttrs(map[string]any{
 				"bucket": s.Bucket,
 				"key":    s.Key,
 			})
 		}
+
 		results = appendS3ListObjectKeys(results, s.Bucket, out.Contents)
 		if !listObjectsV2HasMore(out) {
 			break
 		}
+
 		input.ContinuationToken = out.NextContinuationToken
 	}
+
 	return results, nil
 }
 
 // Put writes data to an object in the S3 bucket.
 //
-// The context passed to this function is passed to the S3 client.
+// There are no options for this function.
 //
-// The options passed to this function are not used.
-//
-// This function may return an error with any of the following codes:
+// This function may return any one of the following errors:
 //   - [BackendPutError]: the object could not be written
-func (s *S3Backend) Put(ctx context.Context, data []byte, options ...uripath.BackendOption) xerrors.Error {
+func (s *S3Backend) Put(ctx context.Context, data []byte, _ ...uripath.BackendOption) xerrors.Error {
 	input := &s3.PutObjectInput{
 		Bucket: aws.String(s.Bucket),
 		Key:    aws.String(s.Key),
 		Body:   bytes.NewReader(data),
 	}
+
 	_, err := s.Client.PutObject(ctx, input)
 	if err != nil {
-		return xerrors.Wrapf(uripath.BackendPutError, err, "failed to write S3 object '%s/%s': %s", s.Bucket, s.Key,
+		return urierrors.NewBackendPutError(ctx, err, "failed to write S3 object '%s/%s': %s", s.Bucket, s.Key,
 			err.Error()).WithAttrs(map[string]any{
 			"bucket": s.Bucket,
 			"key":    s.Key,
 		})
 	}
+
 	return nil
 }
 
@@ -281,8 +295,10 @@ func appendS3ListObjectKeys(results []string, bucket string, contents []types.Ob
 		if obj.Key == nil {
 			continue
 		}
+
 		results = append(results, fmt.Sprintf("%s/%s", bucket, *obj.Key))
 	}
+
 	return results
 }
 
@@ -300,13 +316,16 @@ func newListObjectsV2Input(bucket, prefix string, recurse bool) *s3.ListObjectsV
 	if !recurse {
 		input.Delimiter = aws.String("/")
 	}
+
 	return input
 }
 
-// normalizeS3ListPrefix ensures a non-empty key uses a trailing slash so S3 prefix listing treats it as a logical directory.
+// normalizeS3ListPrefix ensures a non-empty key uses a trailing slash so S3 prefix listing treats it as a
+// logical directory.
 func normalizeS3ListPrefix(key string) string {
 	if key == "" || strings.HasSuffix(key, "/") {
 		return key
 	}
+
 	return key + "/"
 }

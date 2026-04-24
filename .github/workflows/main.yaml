@@ -1,0 +1,70 @@
+name: Test and Analyze 'main' Branch
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+env:
+  SONARQUBE_ORGANIZATION: 'innotegrity'
+  SONARQUBE_PROJECT_KEY: 'innotegrity_go-mod-uripath'
+  SONARQUBE_SOURCE_DIR: '.'
+
+jobs:
+  golang-lint:
+    name: Run golangci-lint checks
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: innotegrity/github-actions/check-out-code@main
+      - uses: innotegrity/github-actions/set-up-go@main
+      - uses: innotegrity/github-actions/run-golangci-lint@main
+
+  markdown-lint:
+    name: Run markdownlint checks
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: innotegrity/github-actions/check-out-code@main
+      - uses: innotegrity/github-actions/set-up-go@main
+      - uses: innotegrity/github-actions/run-markdown-lint@main
+
+  sonarqube-review:
+    needs: [golang-lint, markdown-lint]
+    name: Run SonarQube quality analysis
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: innotegrity/github-actions/check-out-code@main
+        with:
+          fetch-depth: 0 # required for better SonarQube analysis
+      - uses: innotegrity/github-actions/set-up-go@main
+      - uses: innotegrity/github-actions/run-go-tests@main
+      - uses: innotegrity/github-actions/run-sonarqube-scan@main
+        with:
+          token: ${{ secrets.SONAR_TOKEN }}
+          organization: ${{ env.SONARQUBE_ORGANIZATION }}
+          projectKey: ${{ env.SONARQUBE_PROJECT_KEY }}
+          sourceDir: ${{ env.SONARQUBE_SOURCE_DIR }}
+          excludedWorkflowPattern: ".github/workflows/*.yaml"
+          coverageExclusions: "**/*_test.go,**/*_mock.go"
+      - uses: innotegrity/github-actions/verify-sonarqube-quality@main
+        with:
+          token: ${{ secrets.SONAR_TOKEN }}
+
+  ci-success:
+    name: All CI Checks Passed
+    needs: [golang-lint, markdown-lint, sonarqube-review]
+    runs-on: ubuntu-latest
+    if: always() # ensures this job always runs, even if others fail
+    steps:
+      - name: Check Statuses
+        # fails if any job in 'needs' did not succeed
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: exit 1

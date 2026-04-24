@@ -1,0 +1,8 @@
+{
+  "default": true,
+  "no-duplicate-heading": false,
+  "blanks-around-headings": false,
+  "first-line-heading": false,
+  "blanks-around-lists": false,
+  "line-length": false
+}

@@ -1,1 +1,50 @@
 version: "2"
+
+linters:
+  default: all
+  disable:
+    - exhaustruct
+    - nolintlint
+    - wsl
+  exclusions:
+    paths:
+      - _test.go
+      - _mock.go
+      - _gen.go
+      - _generated.go
+      - _generated_test.go
+  settings:
+    cyclop:
+      max-complexity: 20
+    depguard:
+      rules:
+        main:
+          list-mode: original
+          allow:
+            - $gostd
+            - github.com
+            - gopkg.in
+            - golang.org
+            - go.innotegrity.dev
+    interfacebloat:
+      max: 15
+    lll:
+      line-length: 120
+    tagliatelle:
+      case:
+        rules:
+          json: camel
+          yaml: camel
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+    - golines
+    - swaggo
+  settings:
+    gofumpt:
+      module-path: "%GO_MODULE%"
+      extra-rules: true
+    golines:
+      max-len: 120

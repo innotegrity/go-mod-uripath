@@ -16,3 +16,4 @@ When writing or autocompleting comments in Go, always adhere to these rules:
 4. **Godoc Compatibility:** Use standard Go doc formatting. Avoid using Markdown inside Go comments unless absolutely necessary for clarity in multi-line blocks.
 5. **No Redundancy:** Do not explain obvious implementation details; focus on the *purpose* and *usage* of the code.
 6. **Deprecation:** If marking something as deprecated, use the standard format: `// Deprecated: use NewFunction instead.`
+7. **CRITICAL**: Ensure no line exceeds 120 characters in length.

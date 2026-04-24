@@ -9,7 +9,7 @@ import (
 // NewBackendFunc is a function that is used to create a new Backend instance for a given [URI].
 //
 // Options passed to this function will come from the [ParseURI] function and can be used in constructing the backend.
-type NewBackendFunc func(uri *URI, options ...BackendOption) (Backend, xerrors.Error)
+type NewBackendFunc func(ctx context.Context, uri *URI, options ...BackendOption) (Backend, xerrors.Error)
 
 // Backend is the interface for a path URI backend.
 //
@@ -96,48 +96,49 @@ type BackendBase struct {
 
 // InitBackendBase initializes a [BackendBase] object with the provided options.
 func InitBackendBase(uri *URI, options ...BackendOption) BackendBase {
-	b := BackendBase{
+	base := BackendBase{
 		options: map[string]any{},
 		uri:     uri,
 	}
 	for _, option := range options {
-		option(&b)
+		option(&base)
 	}
-	return b
+
+	return base
 }
 
 // Delete for this backend does nothing.
 //
 // Backends should override this method to provide actual delete functionality.
-func (b *BackendBase) Delete(ctx context.Context, options ...BackendOption) xerrors.Error {
+func (b *BackendBase) Delete(_ context.Context, _ ...BackendOption) xerrors.Error {
 	return nil
 }
 
 // Exists for this backend does nothing and always returns false.
 //
 // Backends should override this method to provide actual existence checking functionality.
-func (b *BackendBase) Exists(ctx context.Context, options ...BackendOption) (bool, xerrors.Error) {
+func (b *BackendBase) Exists(_ context.Context, _ ...BackendOption) (bool, xerrors.Error) {
 	return false, nil
 }
 
 // Get for this backend does nothing and returns nil data.
 //
 // Backends should override this method to provide actual get functionality.
-func (b *BackendBase) Get(ctx context.Context, options ...BackendOption) ([]byte, xerrors.Error) {
+func (b *BackendBase) Get(_ context.Context, _ ...BackendOption) ([]byte, xerrors.Error) {
 	return nil, nil
 }
 
 // List for this backend does nothing and returns a nil list.
 //
 // Backends should override this method to provide actual list functionality.
-func (b *BackendBase) List(ctx context.Context, recurse bool, options ...BackendOption) ([]string, xerrors.Error) {
+func (b *BackendBase) List(_ context.Context, _ bool, _ ...BackendOption) ([]string, xerrors.Error) {
 	return nil, nil
 }
 
 // Put for this backend does nothing.
 //
 // Backends should override this method to provide actual put functionality.
-func (b *BackendBase) Put(ctx context.Context, data []byte, options ...BackendOption) xerrors.Error {
+func (b *BackendBase) Put(_ context.Context, _ []byte, _ ...BackendOption) xerrors.Error {
 	return nil
 }
 
@@ -147,13 +148,16 @@ func (b *BackendBase) Options() map[string]any {
 }
 
 // RemoveAllOptions clears all options from the backend.
-func (f *BackendBase) RemoveAllOptions() {
-	f.options = map[string]any{}
+func (b *BackendBase) RemoveAllOptions() {
+	b.options = map[string]any{}
 }
 
 // RemoveOption removes a specific option from the backend.
+//
+//nolint:ireturn // need to return interface to satisfy [Backend] interface
 func (b *BackendBase) RemoveOption(key string) Backend {
 	delete(b.options, key)
+
 	return b
 }
 
@@ -163,8 +167,11 @@ func (b *BackendBase) ReplaceOptions(options map[string]any) {
 }
 
 // SetOption sets a specific option in the backend.
+//
+//nolint:ireturn // need to return interface to satisfy [Backend] interface
 func (b *BackendBase) SetOption(key string, value any) Backend {
 	b.options[key] = value
+
 	return b
 }
 

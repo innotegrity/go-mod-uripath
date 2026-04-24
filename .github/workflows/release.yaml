@@ -1,0 +1,20 @@
+name: Create GitHub Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  create-release:
+    name: Create GitHub Release
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: innotegrity/github-actions/wait-for-workflow@main
+        timeout-minutes: 10
+        with:
+          workflow: main.yaml
+      - uses: innotegrity/github-actions/check-out-code@main
+      - uses: innotegrity/github-actions/create-release-from-changelog@main

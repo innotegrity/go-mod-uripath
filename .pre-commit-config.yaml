@@ -3,23 +3,43 @@ repos:
     rev: v6.0.0
     hooks:
       - id: check-added-large-files
+        name: Check for files > 4MB
         args:
-          - --maxkb=4096
+          - '--maxkb=4096'
+      - id: check-case-conflict
+        name: Check for filename case conflicts
       - id: check-shebang-scripts-are-executable
-      - id: detect-private-key
+        name: Check that scripts with shebang are executable
+      - id: check-symlinks
+        name: Check for dead symlinks
       - id: end-of-file-fixer
-      - id: trailing-whitespace
+        name: Fix missing newline at end of file
+      - id: mixed-line-ending
+        name: Fix mixed line endings
         args:
-          - --markdown-linebreak-ext=md
-  - repo: https://github.com/tekwizely/pre-commit-golang
-    rev: v1.0.0-rc.4
+          - '--fix=auto'
+      - id: trailing-whitespace
+        name: Fix trailing whitespace
+        args:
+          - '--markdown-linebreak-ext=md'
+  - repo: https://github.com/golangci/golangci-lint
+    rev: v2.11.4
     hooks:
-      - id: go-mod-tidy
-      - id: go-fmt
+      - id: golangci-lint
+        name: Run golangci-lint checks
+  - repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: v0.22.0
+    hooks:
+      - id: markdownlint-cli2
+        name: Run markdownlint checks
+        args:
+          - '--fix'
+          - '--glob=**/*.md'
+          - '--glob=**/*.mdc'
   - repo: local
     hooks:
-      - id: codacy-cli
-        name: Codacy CLI
-        entry: codacy-cli
+      - id: sonar-secrets
+        name: sonar secrets scan
+        entry: sonar analyze secrets --
         language: system
-        pass_filenames: false
+        pass_filenames: true

@@ -3,32 +3,40 @@ package uripath
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/url"
 	"reflect"
 	"regexp"
 	"strings"
 	"sync"
 
+	urierrors "go.innotegrity.dev/mod/uripath/errors"
 	"go.innotegrity.dev/mod/xerrors"
 )
 
 var (
-	// global registry for backend schemes
+	//nolint:gochecknoglobals // this is a global registry for backend schemes.
 	_backendRegistry = make(map[string]NewBackendFunc)
-	_registryMutex   sync.RWMutex
+
+	//nolint:gochecknoglobals // this is a global mutex for the backend registry.
+	_registryMutex sync.RWMutex
 )
 
 // BackendAs returns the backend cast to the concrete type T.
 //
 // This function may return an error with any of the following codes:
-//   - [InvalidParameter]: the backend does not match the given type
-func BackendAs[T Backend](u *URI) (T, xerrors.Error) {
+//   - [urierrors.InvalidParameterError]: the backend does not match the given type
+//
+//nolint:ireturn // want to be able to return generic type.
+func BackendAs[T Backend](ctx context.Context, u *URI) (T, xerrors.Error) {
 	backend, ok := u.Backend.(T)
 	if !ok {
 		var zero T
-		return zero, xerrors.Newf(InvalidParameter, "backend is not of type %T", zero).
+
+		return zero, urierrors.NewInvalidParameterError(ctx, nil, "backend is not of type %T", zero).
 			WithAttr("type", reflect.TypeOf(zero))
 	}
+
 	return backend, nil
 }
 
@@ -44,10 +52,12 @@ func BackendAs[T Backend](u *URI) (T, xerrors.Error) {
 // explicitly set to true. Backends must be registered before calling [ParseURI] with a URI that uses the
 // corresponding scheme.
 //
-// This function may return an error with any of the following codes:
-//   - [InvalidParameter]: the scheme is not valid
-//   - [SchemeExists]: the scheme is already registered (and overwriteExisting was false or not specified)
-func RegisterBackend(scheme string, newBackendFunc NewBackendFunc, overwriteExisting ...bool) xerrors.Error {
+// This function may return one of the following errors:
+//   - [urierrors.InvalidSchemeError]: the scheme is not valid
+//   - [urierrors.SchemeExistsError]: the scheme is already registered (and overwriteExisting was false or
+//     not specified)
+func RegisterBackend(ctx context.Context, scheme string, newBackendFunc NewBackendFunc, overwriteExisting ...bool,
+) xerrors.Error {
 	_registryMutex.Lock()
 	defer _registryMutex.Unlock()
 
@@ -57,15 +67,18 @@ func RegisterBackend(scheme string, newBackendFunc NewBackendFunc, overwriteExis
 	scheme = strings.TrimSuffix(scheme, ":")
 
 	// ensure the scheme is valid
-	if xerr := validateScheme(scheme); xerr != nil {
+	xerr := validateScheme(ctx, scheme)
+	if xerr != nil {
 		return xerr
 	}
 
 	allowOverwrite := len(overwriteExisting) > 0 && overwriteExisting[0]
 	if _, exists := _backendRegistry[scheme]; exists && !allowOverwrite {
-		return xerrors.Newf(SchemeExists, "%s: scheme is already registered", scheme).WithAttr("scheme", scheme)
+		return urierrors.NewSchemeExistsError(ctx, scheme)
 	}
+
 	_backendRegistry[scheme] = newBackendFunc
+
 	return nil
 }
 
@@ -89,17 +102,18 @@ func RegisterBackend(scheme string, newBackendFunc NewBackendFunc, overwriteExis
 //	  	 _ "go.innotegrity.dev/mod/uripath/backends/hashicorp"
 //	  )
 //
-// This function may return an error with any of the following codes:
-//   - [InvalidParameter]: the URI is not valid
-//   - [SchemeNotFound]: the URI scheme is not registered
-func ParseURI(uri string, backendOptions ...BackendOption) (*URI, xerrors.Error) {
+// This function may return one of the following errors:
+//   - [urierrors.InvalidParameterError]: the URI is not valid
+//   - [urierrors.SchemeNotFoundError]: the URI scheme is not registered
+func ParseURI(ctx context.Context, uri string, backendOptions ...BackendOption) (*URI, xerrors.Error) {
 	// parse the URL
 	parsedURL, err := url.Parse(uri)
 	if err != nil {
-		return nil, xerrors.Wrapf(InvalidParameter, err, "failed to parse URI '%s': %s", uri, err.Error()).
+		return nil, urierrors.NewInvalidParameterError(ctx, err, "failed to parse URI '%s': %s", uri, err.Error()).
 			WithAttr("uri", uri)
 	}
-	u := &URI{
+
+	uriObj := &URI{
 		scheme:   strings.ToLower(parsedURL.Scheme),
 		Host:     parsedURL.Host,
 		Path:     parsedURL.Path,
@@ -107,20 +121,22 @@ func ParseURI(uri string, backendOptions ...BackendOption) (*URI, xerrors.Error)
 		Fragment: parsedURL.Fragment,
 	}
 	if parsedURL.User != nil {
-		u.Username = parsedURL.User.Username()
-		u.Password, _ = parsedURL.User.Password()
+		uriObj.Username = parsedURL.User.Username()
+		uriObj.Password, _ = parsedURL.User.Password()
 	}
 
 	// construct the backend
-	newBackendFunc, xerr := getBackend(u.scheme)
+	newBackendFunc, xerr := getBackend(ctx, uriObj.scheme)
 	if xerr != nil {
 		return nil, xerr
 	}
-	u.Backend, xerr = newBackendFunc(u, backendOptions...)
+
+	uriObj.Backend, xerr = newBackendFunc(ctx, uriObj, backendOptions...)
 	if xerr != nil {
 		return nil, xerr
 	}
-	return u, nil
+
+	return uriObj, nil
 }
 
 // URI is used for retrieving and potentially manipulating files using a URI-style string.
@@ -133,13 +149,13 @@ func ParseURI(uri string, backendOptions ...BackendOption) (*URI, xerrors.Error)
 // The 'backends' package contains the collection of built-in backends that are supported. Refer to the documentation
 // for each backend for proper URI formatting.
 //
-// To register the built-in backends, you **must** import the 'backends' package:
-//
-//		 import (
-//	  	 _ "go.innotegrity.dev/mod/uripath/backends"
-//	  )
-//
 // Users can also register custom backends for additional schemes using the [RegisterBackend] function.
+//
+// User info fields [URI.Username] and [URI.Password] hold the values from parsing or construction.
+// [URI.String] includes them verbatim; [URI.SafeString], [URI.MarshalJSON], and [URI.MarshalText] emit
+// redacted values that cannot be reversed by [URI.UnmarshalJSON] or [URI.UnmarshalText].
+//
+//nolint:recvcheck // need to abide by json.Marshaler and json.Unmarshaler interfaces.
 type URI struct {
 	// Backend holds the backend which actually handles doing the work.
 	Backend Backend
@@ -150,7 +166,7 @@ type URI struct {
 	// Host holds the hostname (and optional port) of the URI.
 	Host string
 
-	// Pasword holds the password portion of the URI (if one was specified).
+	// Password holds the password portion of the URI (if one was specified).
 	Password string
 
 	// Path holds the path portion of the URI.
@@ -206,14 +222,25 @@ func (u *URI) List(ctx context.Context, recurse bool, options ...BackendOption) 
 	return u.Backend.List(ctx, recurse, options...)
 }
 
-// MarshalJSON marshals the [URI] value to JSON.
+// MarshalJSON marshals [URI.SafeString] as a JSON string.
+//
+// Unmarshaling that JSON with [URI.UnmarshalJSON] yields a URI whose user info is the redacted literal string,
+// not the original secret values.
 func (u URI) MarshalJSON() ([]byte, error) {
-	return json.Marshal(u.String())
+	result, err := json.Marshal(u.redactedString())
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal URI to JSON: %w", err)
+	}
+
+	return result, nil
 }
 
-// MarshalText marshals the [URI] value to plain text.
+// MarshalText marshals [URI.SafeString] to plain text.
+//
+// Unmarshaling that text with [URI.UnmarshalText] yields a URI whose user info is the redacted literal string,
+// not the original secret values.
 func (u URI) MarshalText() ([]byte, error) {
-	return []byte(u.String()), nil
+	return []byte(u.redactedString()), nil
 }
 
 // Put stores content at the given path.
@@ -231,12 +258,26 @@ func (u *URI) RawQuery() string {
 	return u.Query.Encode()
 }
 
+// SafeString returns a URI string with credentials redacted.
+//
+// The username keeps only the first and last Unicode code point (the rest are '*'), and the password is
+// replaced by a set of '*' characters. It returns the empty string if u is nil.
+func (u *URI) SafeString() string {
+	if u == nil {
+		return ""
+	}
+
+	return u.redactedString()
+}
+
 // Scheme returns the URI scheme (e.g., "s3", "file", "git").
 func (u *URI) Scheme() string {
 	return u.scheme
 }
 
-// String returns the full URI string.
+// String returns the full URI string including the original username and password.
+//
+// For a redacted form, use [URI.SafeString], [URI.MarshalJSON], or [URI.MarshalText].
 func (u *URI) String() string {
 	var builder strings.Builder
 	builder.WriteString(u.scheme)
@@ -244,10 +285,12 @@ func (u *URI) String() string {
 
 	if u.Username != "" {
 		builder.WriteString(u.Username)
+
 		if u.Password != "" {
 			builder.WriteString(":")
 			builder.WriteString(u.Password)
 		}
+
 		builder.WriteString("@")
 	}
 
@@ -268,50 +311,123 @@ func (u *URI) String() string {
 }
 
 // UnmarshalJSON parses the JSON data into a [URI] value.
+//
+// If the JSON was produced by [URI.MarshalJSON], the embedded credentials are the redacted placeholders only;
+// the original username and password cannot be recovered.
 func (u *URI) UnmarshalJSON(data []byte) error {
 	var sval string
-	if err := json.Unmarshal(data, &sval); err != nil {
-		return err
+
+	err := json.Unmarshal(data, &sval)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal URI from JSON: %w", err)
 	}
-	val, err := ParseURI(sval)
+
+	val, err := ParseURI(context.Background(), sval)
 	if err != nil {
 		return err
 	}
+
 	*u = *val
+
 	return nil
 }
 
 // UnmarshalText parses the text into a [URI] value.
+//
+// Text produced by [URI.MarshalText] contains redacted credentials and will not round-trip to the original
+// secret values.
 func (u *URI) UnmarshalText(data []byte) error {
-	val, err := ParseURI(string(data))
+	val, err := ParseURI(context.Background(), string(data))
 	if err != nil {
 		return err
 	}
+
 	*u = *val
+
 	return nil
+}
+
+// redactedString returns a URI string like [URI.String] but with credentials redacted for safe
+// logging or serialization. It backs [URI.SafeString], [URI.MarshalJSON], and [URI.MarshalText].
+func (u URI) redactedString() string {
+	var builder strings.Builder
+	builder.WriteString(u.scheme)
+	builder.WriteString("://")
+
+	if u.Username != "" {
+		builder.WriteString(redactUsernameForMarshal(u.Username))
+
+		if u.Password != "" {
+			builder.WriteString(":")
+			builder.WriteString(redactedPasswordPlaceholder)
+		}
+
+		builder.WriteString("@")
+	}
+
+	builder.WriteString(u.Host)
+	builder.WriteString(u.Path)
+
+	if len(u.Query) > 0 {
+		builder.WriteString("?")
+		builder.WriteString(u.RawQuery())
+	}
+
+	if u.Fragment != "" {
+		builder.WriteString("#")
+		builder.WriteString(u.Fragment)
+	}
+
+	return builder.String()
+}
+
+// redactedPasswordPlaceholder is a fixed run of asterisks used in place of the real password when
+// serializing a URI with [URI.MarshalJSON] or [URI.MarshalText], so the password length is not
+// disclosed.
+const redactedPasswordPlaceholder = "********"
+
+// redactUsernameForMarshal returns a redacted form of username suitable for marshaling: the first
+// and last Unicode code points are kept; any others are replaced with '*'. A single code point is
+// replaced entirely by '*'; two code points are left unchanged.
+func redactUsernameForMarshal(username string) string {
+	char := []rune(username)
+	switch length := len(char); length {
+	case 0:
+		return ""
+	case 1:
+		return "*"
+	//nolint:mnd // need to return the first and last characters of the username.
+	case 2:
+		return string(char[0]) + string(char[1])
+	default:
+		//nolint:mnd // need to repeat the asterisk character length-2 times.
+		return string(char[0]) + strings.Repeat("*", length-2) + string(char[length-1])
+	}
 }
 
 // getBackend returns the backend factory function for a given scheme.
 //
 // This function may return an error with any of the following codes:
-//   - [SchemeNotFound]: the scheme is not registered
-func getBackend(scheme string) (NewBackendFunc, xerrors.Error) {
+//   - [urierrors.SchemeNotFoundError]: the scheme is not registered
+func getBackend(ctx context.Context, scheme string) (NewBackendFunc, xerrors.Error) {
 	_registryMutex.RLock()
 	defer _registryMutex.RUnlock()
 
 	if newBackendFunc, exists := _backendRegistry[strings.ToLower(scheme)]; exists {
 		return newBackendFunc, nil
 	}
-	return nil, xerrors.Newf(SchemeNotFound, "%s: scheme not found", scheme).WithAttr("scheme", scheme)
+
+	return nil, urierrors.NewSchemeNotFoundError(ctx, scheme)
 }
 
 // validateScheme checks to ensure the given scheme is valid.
 //
-// This function may return an error with any of the following codes:
-//   - [InvalidParameter]: the scheme is not valid
-func validateScheme(scheme string) xerrors.Error {
+// This may return one of the following errors:
+//   - [urierrors.InvalidSchemeError]: the scheme is not valid
+func validateScheme(ctx context.Context, scheme string) xerrors.Error {
 	if !regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9+.-]+$`).MatchString(scheme) {
-		return xerrors.Newf(InvalidParameter, "%s: scheme is invalid", scheme).WithAttr("scheme", scheme)
+		return urierrors.NewInvalidSchemeError(ctx, scheme)
 	}
+
 	return nil
 }

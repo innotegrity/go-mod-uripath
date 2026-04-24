@@ -44,14 +44,14 @@ func (m *MockBackend) EXPECT() *MockBackendMockRecorder {
 }
 
 // Delete mocks base method.
-func (m *MockBackend) Delete(ctx context.Context, options ...map[string]any) xerrors.Error {
+func (m *MockBackend) Delete(ctx context.Context, options ...map[string]any) xerrors.XError {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx}
 	for _, a := range options {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "Delete", varargs...)
-	ret0, _ := ret[0].(xerrors.Error)
+	ret0, _ := ret[0].(xerrors.XError)
 	return ret0
 }
 
@@ -63,7 +63,7 @@ func (mr *MockBackendMockRecorder) Delete(ctx any, options ...any) *gomock.Call 
 }
 
 // Exists mocks base method.
-func (m *MockBackend) Exists(ctx context.Context, options ...map[string]any) (bool, xerrors.Error) {
+func (m *MockBackend) Exists(ctx context.Context, options ...map[string]any) (bool, xerrors.XError) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx}
 	for _, a := range options {
@@ -71,7 +71,7 @@ func (m *MockBackend) Exists(ctx context.Context, options ...map[string]any) (bo
 	}
 	ret := m.ctrl.Call(m, "Exists", varargs...)
 	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(xerrors.Error)
+	ret1, _ := ret[1].(xerrors.XError)
 	return ret0, ret1
 }
 
@@ -83,7 +83,7 @@ func (mr *MockBackendMockRecorder) Exists(ctx any, options ...any) *gomock.Call 
 }
 
 // Get mocks base method.
-func (m *MockBackend) Get(ctx context.Context, options ...map[string]any) ([]byte, xerrors.Error) {
+func (m *MockBackend) Get(ctx context.Context, options ...map[string]any) ([]byte, xerrors.XError) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx}
 	for _, a := range options {
@@ -91,7 +91,7 @@ func (m *MockBackend) Get(ctx context.Context, options ...map[string]any) ([]byt
 	}
 	ret := m.ctrl.Call(m, "Get", varargs...)
 	ret0, _ := ret[0].([]byte)
-	ret1, _ := ret[1].(xerrors.Error)
+	ret1, _ := ret[1].(xerrors.XError)
 	return ret0, ret1
 }
 
@@ -103,7 +103,7 @@ func (mr *MockBackendMockRecorder) Get(ctx any, options ...any) *gomock.Call {
 }
 
 // List mocks base method.
-func (m *MockBackend) List(ctx context.Context, recurse bool, options ...map[string]any) ([]string, xerrors.Error) {
+func (m *MockBackend) List(ctx context.Context, recurse bool, options ...map[string]any) ([]string, xerrors.XError) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, recurse}
 	for _, a := range options {
@@ -111,7 +111,7 @@ func (m *MockBackend) List(ctx context.Context, recurse bool, options ...map[str
 	}
 	ret := m.ctrl.Call(m, "List", varargs...)
 	ret0, _ := ret[0].([]string)
-	ret1, _ := ret[1].(xerrors.Error)
+	ret1, _ := ret[1].(xerrors.XError)
 	return ret0, ret1
 }
 
@@ -137,14 +137,14 @@ func (mr *MockBackendMockRecorder) Options() *gomock.Call {
 }
 
 // Put mocks base method.
-func (m *MockBackend) Put(ctx context.Context, data []byte, options ...map[string]any) xerrors.Error {
+func (m *MockBackend) Put(ctx context.Context, data []byte, options ...map[string]any) xerrors.XError {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, data}
 	for _, a := range options {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "Put", varargs...)
-	ret0, _ := ret[0].(xerrors.Error)
+	ret0, _ := ret[0].(xerrors.XError)
 	return ret0
 }
 
